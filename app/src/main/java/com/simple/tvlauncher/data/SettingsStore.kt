@@ -29,6 +29,7 @@ data class LauncherSettings(
     val homeStyle: HomeStyle = HomeStyle.HeroSelect,
     /** Roles you picked yourself; other apps get [Role.default]. */
     val roleOverrides: Map<String, Role> = emptyMap(),
+    val musicVolume: MusicVolume = MusicVolume.Quiet,
 ) {
     companion object {
         const val DEFAULT_BACKGROUND = 0xFF101418
@@ -36,6 +37,16 @@ data class LauncherSettings(
 }
 
 enum class HomeStyle { HeroSelect, Classic }
+
+/** Background music loudness, as a fraction of the TV's media volume. */
+enum class MusicVolume(val label: String, val level: Float) {
+    Off("Off", 0f),
+    Quiet("Quiet", 0.12f),
+    Medium("Medium", 0.25f),
+    Loud("Loud", 0.45f);
+
+    fun next(): MusicVolume = entries[(ordinal + 1) % entries.size]
+}
 
 private val Context.dataStore by preferencesDataStore(name = "launcher_settings")
 
@@ -55,6 +66,7 @@ class SettingsStore(context: Context) {
                 appOrder = p.list(APP_ORDER),
                 homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.HeroSelect,
                 roleOverrides = p.roleOverrides(),
+                musicVolume = MusicVolume.entries.firstOrNull { it.name == p[MUSIC_VOLUME] } ?: MusicVolume.Quiet,
             )
         }
 
@@ -85,6 +97,8 @@ class SettingsStore(context: Context) {
         list.add(to, list.removeAt(from))
         p[APP_ORDER] = list.joinToString(",")
     }
+
+    suspend fun setMusicVolume(volume: MusicVolume) = store.edit { it[MUSIC_VOLUME] = volume.name }
 
     suspend fun setHomeStyle(style: HomeStyle) = store.edit { it[HOME_STYLE] = style.name }
 
@@ -133,6 +147,7 @@ class SettingsStore(context: Context) {
         val APP_ORDER = stringPreferencesKey("app_order")
         val HOME_STYLE = stringPreferencesKey("home_style")
         val ROLES = stringPreferencesKey("role_overrides")
+        val MUSIC_VOLUME = stringPreferencesKey("music_volume")
         val HIDDEN = stringSetPreferencesKey("hidden")
         val BACKGROUND = longPreferencesKey("background_color")
         val USE_WALLPAPER = booleanPreferencesKey("use_wallpaper")

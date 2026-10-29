@@ -41,6 +41,8 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val wallpaper by viewModel.wallpaper.collectAsStateWithLifecycle()
     val wallpaperOptions by viewModel.wallpaperOptions.collectAsStateWithLifecycle()
+    val logo by viewModel.logo.collectAsStateWithLifecycle()
+    val musicTracks by viewModel.musicTracks.collectAsStateWithLifecycle()
     val inputs by viewModel.inputs.collectAsStateWithLifecycle()
     val homeServiceEnabled by viewModel.homeServiceEnabled.collectAsStateWithLifecycle()
     val homePressCount by homePresses.collectAsStateWithLifecycle()
@@ -87,6 +89,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         state = state,
                         focusResetKey = focusReset,
                         hasWallpaper = state.settings.useWallpaper && picture != null,
+                        logo = logo,
                         onLaunch = { viewModel.launch(it) },
                         onOptions = { optionsFor = it to Section.Apps },
                         onOpenInputs = { showInputs = true },
@@ -124,6 +127,11 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onUnhide = { viewModel.setHidden(it, false) },
                         onResetAppOrder = { viewModel.resetAppOrder() },
                         onSetHomeStyle = { viewModel.setHomeStyle(it) },
+                        logoFound = logo != null,
+                        logoFolder = viewModel.logoFolder,
+                        musicTrackCount = musicTracks.size,
+                        musicFolder = viewModel.musicFolder,
+                        onSetMusicVolume = { viewModel.setMusicVolume(it) },
                         onOpenAccessibilitySettings = {
                             startSafely(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },

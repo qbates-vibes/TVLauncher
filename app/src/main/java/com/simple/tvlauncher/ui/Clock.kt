@@ -16,15 +16,21 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
+/** The current time, updated at the start of every minute. */
 @Composable
-fun Clock(use24Hour: Boolean, modifier: Modifier = Modifier) {
+fun currentTime(): LocalDateTime {
     val now by produceState(initialValue = LocalDateTime.now()) {
         while (true) {
             value = LocalDateTime.now()
-            // Wake up right at the start of the next minute.
             delay(60_000L - System.currentTimeMillis() % 60_000L)
         }
     }
+    return now
+}
+
+@Composable
+fun Clock(use24Hour: Boolean, modifier: Modifier = Modifier) {
+    val now = currentTime()
     Column(modifier, horizontalAlignment = Alignment.End) {
         Text(
             text = now.format(DateTimeFormatter.ofPattern(if (use24Hour) "HH:mm" else "h:mm a")),

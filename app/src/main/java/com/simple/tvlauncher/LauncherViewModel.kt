@@ -13,7 +13,9 @@ import com.simple.tvlauncher.data.LauncherSettings
 import com.simple.tvlauncher.data.SettingsStore
 import com.simple.tvlauncher.data.TvInput
 import com.simple.tvlauncher.data.TvInputs
-import com.simple.tvlauncher.data.Wallpaper
+import com.simple.tvlauncher.data.BackgroundMusic
+import com.simple.tvlauncher.data.MusicVolume
+import com.simple.tvlauncher.data.UserFiles
 import com.simple.tvlauncher.data.WallpaperOption
 import com.simple.tvlauncher.data.inSavedOrder
 import kotlinx.coroutines.Dispatchers
@@ -71,18 +73,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         files.firstOrNull { File(it.first).name == settings.wallpaperName } ?: files.firstOrNull()
     }
         .distinctUntilChanged()
-        .map { file -> file?.let { withContext(Dispatchers.IO) { Wallpaper.load(File(it.first)) } } }
+        .map { file -> file?.let { withContext(Dispatchers.IO) { UserFiles.loadImage(File(it.first)) } } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val wallpaperOptions: StateFlow<List<WallpaperOption>> = wallpaperFiles
         .map { files ->
             withContext(Dispatchers.IO) {
-                files.map { (path, _) -> File(path).let { WallpaperOption(it.name, Wallpaper.load(it, maxWidth = 320)) } }
+                files.map { (path, _) -> File(path).let { WallpaperOption(it.name, UserFiles.loadImage(it, maxWidth = 320)) } }
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val wallpaperFolder: String = Wallpaper.folderPath(application)
+    val wallpaperFolder: String = UserFiles.folderPath(application)
+    val logoFolder: String = UserFiles.folderPath(application, UserFiles.LOGO_FOLDER)
+    val musicFolder: String = UserFiles.folderPath(application, UserFiles.MUSIC_FOLDER)
+
+    private val logoFile = MutableStateFlow<Pair<String, Long>?>(null)
+    val logo: StateFlow<ImageBitmap?> = logoFile
+        .map { file -> file?.let { withContext(Dispatchers.IO) { UserFiles.loadImage(File(it.first), maxWidth = 800) } } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _musicTracks = MutableStateFlow<List<String>>(emptyList())
+    val musicTracks: StateFlow<List<String>> = _musicTracks.asStateFlow()
+
+    private val music = BackgroundMusic(application)
+    private val resumed = MutableStateFlow(false)
+
+    init {
+        // Music plays only while the launcher is on screen.
+        viewModelScope.launch {
+            combine(resumed, _musicTracks, store.settings.map { it.musicVolume }.distinctUntilChanged()) { onScreen, tracks, volume ->
+                Triple(onScreen, tracks, volume)
+            }.collect { (onScreen, tracks, volume) ->
+                if (onScreen) music.play(tracks, volume.level) else music.pause()
+            }
+        }
+    }
 
     private val _inputs = MutableStateFlow<List<TvInput>>(emptyList())
     val inputs: StateFlow<List<TvInput>> = _inputs.asStateFlow()
@@ -92,11 +118,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Called every time the home screen comes back into view. */
     fun onResume() {
+        resumed.value = true
         _homeServiceEnabled.value = HomeButtonService.isEnabled(app)
         viewModelScope.launch(Dispatchers.IO) {
-            wallpaperFiles.value = Wallpaper.list(app).map { it.path to it.lastModified() }
+            wallpaperFiles.value = UserFiles.list(app, null, UserFiles.IMAGE_EXTENSIONS).map { it.path to it.lastModified() }
+            logoFile.value = UserFiles.list(app, UserFiles.LOGO_FOLDER, UserFiles.IMAGE_EXTENSIONS).firstOrNull()
+                ?.let { it.path to it.lastModified() }
+            _musicTracks.value = UserFiles.list(app, UserFiles.MUSIC_FOLDER, UserFiles.AUDIO_EXTENSIONS).map { it.path }
             _inputs.value = TvInputs.list(app)
         }
+    }
+
+    fun onPause() {
+        resumed.value = false
+    }
+
+    override fun onCleared() {
+        music.stop()
     }
 
     fun launch(appInfo: AppInfo) {
@@ -114,6 +152,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         store.moveApp(pkg, delta, visibleAToZ)
     }
 
+    fun setMusicVolume(volume: MusicVolume) = viewModelScope.launch { store.setMusicVolume(volume) }
     fun setHomeStyle(style: HomeStyle) = viewModelScope.launch { store.setHomeStyle(style) }
     fun setRole(pkg: String, role: Role) = viewModelScope.launch { store.setRole(pkg, role) }
     fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }

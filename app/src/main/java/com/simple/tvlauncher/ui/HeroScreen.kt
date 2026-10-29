@@ -19,18 +19,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,11 +48,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -69,14 +70,21 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Glow
 import androidx.tv.material3.Text
 import com.simple.tvlauncher.LauncherState
 import com.simple.tvlauncher.data.AppInfo
 import com.simple.tvlauncher.data.Role
+import java.time.format.DateTimeFormatter
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 private val Accent = Color(0xFFF99E1A)
 private val PortraitColor = Color(0xFF1C3354)
 private val PortraitFocusedColor = Color(0xFF2B4D7C)
+private val FocusGlow = Glow(elevationColor = Accent.copy(alpha = 0.8f), elevation = 12.dp)
 
 /** Bold italic condensed system font: the closest built-in match to a hero-select title. */
 private val HeroFont = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC))
@@ -88,19 +96,30 @@ private fun heroText(size: Int, color: Color = Color.White) = TextStyle(
     shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 3f), blurRadius = 8f),
 )
 
-/** A home screen styled like a game's hero select: the focused app is the "hero" in the spotlight. */
+private val Role.tagline: String
+    get() = when (this) {
+        Role.Tank -> "Front-line streaming"
+        Role.Damage -> "Games and music"
+        Role.Support -> "Tools and utilities"
+    }
+
+/**
+ * A home screen styled like a game's hero select: the focused app is the "hero" in the spotlight,
+ * and every app sits in a role-grouped roster along the bottom.
+ */
 @Composable
 fun HeroScreen(
     state: LauncherState,
     focusResetKey: Int,
     hasWallpaper: Boolean,
+    logo: ImageBitmap?,
     onLaunch: (AppInfo) -> Unit,
     onOptions: (AppInfo) -> Unit,
     onOpenInputs: () -> Unit,
     onOpenTvSettings: () -> Unit,
     onOpenLauncherSettings: () -> Unit,
 ) {
-    val rosterState = rememberLazyGridState()
+    val rosterState = rememberLazyListState()
     val firstPortrait = remember { FocusRequester() }
     var focusedPackage by remember { mutableStateOf<String?>(null) }
     var hasFocus by remember { mutableStateOf(false) }
@@ -129,21 +148,14 @@ fun HeroScreen(
         HeroBackdrop(Modifier.fillMaxSize(), alpha = if (hasWallpaper) 0.55f else 1f)
 
         Column(Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column {
-                    Text("CHOOSE YOUR APP", style = heroText(30))
-                    Text("${state.apps.size} AVAILABLE", style = heroText(14, Color.White.copy(alpha = 0.6f)))
+            Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 20.dp)) {
+                TitleBlock(logo, Modifier.align(Alignment.CenterStart))
+                MatchClock(state.settings.use24HourClock, Modifier.align(Alignment.TopCenter))
+                Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SkewedButton("INPUTS", onOpenInputs)
+                    SkewedButton("SETTINGS", onOpenTvSettings)
+                    SkewedButton("LAUNCHER", onOpenLauncherSettings)
                 }
-                Spacer(Modifier.weight(1f))
-                SkewedButton("INPUTS", onOpenInputs)
-                SkewedButton("TV SETTINGS", onOpenTvSettings)
-                SkewedButton("LAUNCHER", onOpenLauncherSettings)
-                Spacer(Modifier.width(12.dp))
-                Clock(state.settings.use24HourClock)
             }
 
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 48.dp)) {
@@ -157,28 +169,25 @@ fun HeroScreen(
                 }
             }
 
-            LazyHorizontalGrid(
+            LazyRow(
                 state = rosterState,
-                rows = GridCells.Fixed(2),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(176.dp)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)))),
-                contentPadding = PaddingValues(horizontal = 48.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .height(184.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)))),
+                contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 8.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(32.dp),
             ) {
                 groups.forEach { (role, apps) ->
-                    item(key = "role:${role.name}", span = { GridItemSpan(maxLineSpan) }) {
-                        RoleHeader(role, Modifier.padding(start = if (role == groups.keys.first()) 0.dp else 14.dp))
-                    }
-                    items(apps, key = { "hero:${it.packageName}" }) { app ->
-                        Portrait(
-                            app = app,
-                            onFocused = { focusedPackage = app.packageName },
-                            onClick = { onLaunch(app) },
-                            onLongClick = { onOptions(app) },
-                            modifier = if (app == firstApp) Modifier.focusRequester(firstPortrait) else Modifier,
+                    item(key = "group:${role.name}") {
+                        RoleGroup(
+                            role = role,
+                            apps = apps,
+                            firstApp = firstApp,
+                            firstPortrait = firstPortrait,
+                            onFocused = { focusedPackage = it.packageName },
+                            onLaunch = onLaunch,
+                            onOptions = onOptions,
                         )
                     }
                 }
@@ -187,47 +196,68 @@ fun HeroScreen(
     }
 }
 
-/** The big "selected hero" area: name, role, controls hint and a large slanted banner. */
+@Composable
+private fun TitleBlock(logo: ImageBitmap?, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (logo != null) {
+            Image(logo, contentDescription = null, modifier = Modifier.heightIn(max = 52.dp).widthIn(max = 160.dp))
+        }
+        Text("OVERWATCH", style = heroText(32))
+    }
+}
+
+/** The clock, styled like a match countdown timer. */
+@Composable
+private fun MatchClock(use24Hour: Boolean, modifier: Modifier = Modifier) {
+    val now = currentTime()
+    val time = now.format(DateTimeFormatter.ofPattern(if (use24Hour) "HH:mm" else "h:mm"))
+    val details = now.format(DateTimeFormatter.ofPattern(if (use24Hour) "EEE MMM d" else "a  ·  EEE MMM d")).uppercase()
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .background(Color.Black.copy(alpha = 0.45f), SkewedShape(10.dp))
+                .padding(horizontal = 26.dp)
+        ) {
+            Text(time, style = heroText(36))
+        }
+        Box(Modifier.width(64.dp).height(3.dp).background(Accent))
+        Text(details, style = heroText(12, Color.White.copy(alpha = 0.7f)), modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
+/** The big "selected hero" area: role, name, controls hint and a large slanted banner. */
 @Composable
 private fun Spotlight(app: AppInfo, role: Role) {
     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RoleIcon(role, Modifier.size(26.dp), Accent)
+                RoleIcon(role, Modifier.size(24.dp), Accent)
                 Text(role.label.uppercase(), style = heroText(22, Accent))
+                Text("·  ${role.tagline.uppercase()}", style = heroText(16, Color.White.copy(alpha = 0.7f)))
             }
             Text(
                 text = app.label.uppercase(),
-                style = heroText(64),
+                style = heroText(58),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(top = 6.dp)) {
-                ControlHint("OK", "PLAY")
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(top = 4.dp)) {
+                ControlHint("OK", "OPEN")
                 ControlHint("HOLD OK", "OPTIONS")
             }
         }
         Spacer(Modifier.width(24.dp))
-        val shape = SkewedShape(36.dp)
+        val shape = SkewedShape(30.dp)
         Box(
             modifier = Modifier
-                .width(400.dp)
-                .height(225.dp)
+                .width(320.dp)
+                .height(180.dp)
                 .background(Brush.linearGradient(listOf(PortraitFocusedColor, PortraitColor)), shape)
+                .clip(shape)
                 .border(3.dp, Accent, shape),
             contentAlignment = Alignment.Center,
         ) {
-            val banner = app.banner
-            val icon = app.icon
-            when {
-                banner != null -> Image(
-                    bitmap = banner,
-                    contentDescription = app.label,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(shape),
-                )
-                icon != null -> Image(icon, contentDescription = app.label, modifier = Modifier.size(120.dp))
-            }
+            AppPicture(app, preferBanner = true, iconSize = 110.dp)
         }
     }
 }
@@ -246,7 +276,42 @@ private fun ControlHint(key: String, action: String) {
     }
 }
 
-/** A roster tile: slanted, showing the app's icon. */
+/** One role's section of the roster: a header with the role icon above two rows of portraits. */
+@Composable
+private fun RoleGroup(
+    role: Role,
+    apps: List<AppInfo>,
+    firstApp: AppInfo?,
+    firstPortrait: FocusRequester,
+    onFocused: (AppInfo) -> Unit,
+    onLaunch: (AppInfo) -> Unit,
+    onOptions: (AppInfo) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RoleIcon(role, Modifier.size(18.dp), Color.White)
+            Text(role.label.uppercase(), style = heroText(16))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Fill column by column, top then bottom, like a hero roster.
+            apps.chunked(2).forEach { column ->
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    column.forEach { app ->
+                        Portrait(
+                            app = app,
+                            onFocused = { onFocused(app) },
+                            onClick = { onLaunch(app) },
+                            onLongClick = { onOptions(app) },
+                            modifier = if (app == firstApp) Modifier.focusRequester(firstPortrait) else Modifier,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A roster tile: slanted, showing the app's icon, with a white outline and orange glow when selected. */
 @Composable
 private fun Portrait(
     app: AppInfo,
@@ -260,44 +325,52 @@ private fun Portrait(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
-            .width(84.dp)
-            .fillMaxHeight()
+            .width(76.dp)
+            .height(60.dp)
             .onFocusChanged { if (it.hasFocus) onFocused() },
         shape = CardDefaults.shape(shape),
-        colors = CardDefaults.colors(
-            containerColor = PortraitColor,
-            contentColor = Color.White,
-            focusedContainerColor = PortraitFocusedColor,
-            focusedContentColor = Color.White,
-        ),
+        colors = portraitColors(),
         scale = CardDefaults.scale(focusedScale = 1.15f),
-        border = CardDefaults.border(
-            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)), shape = shape),
-            focusedBorder = Border(BorderStroke(3.dp, Accent), shape = shape),
-        ),
+        border = portraitBorder(shape),
+        glow = CardDefaults.glow(focusedGlow = FocusGlow),
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val icon = app.icon
-            val banner = app.banner
-            when {
-                icon != null -> Image(icon, contentDescription = app.label, modifier = Modifier.size(40.dp))
-                banner != null -> Image(banner, contentDescription = app.label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)))
+        ) {
+            AppPicture(app, preferBanner = false, iconSize = 38.dp)
         }
     }
 }
 
-/** A column at the start of each role group in the roster. */
 @Composable
-private fun RoleHeader(role: Role, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.width(64.dp).fillMaxHeight(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        RoleIcon(role, Modifier.size(30.dp), Color.White)
-        Spacer(Modifier.height(6.dp))
-        Text(role.label.uppercase(), style = heroText(14, Color.White.copy(alpha = 0.8f)))
+private fun portraitColors() = CardDefaults.colors(
+    containerColor = PortraitColor,
+    contentColor = Color.White,
+    focusedContainerColor = PortraitFocusedColor,
+    focusedContentColor = Color.White,
+)
+
+@Composable
+private fun portraitBorder(shape: Shape) = CardDefaults.border(
+    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)), shape = shape),
+    focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape),
+)
+
+/** The app's banner filling the space, or its icon centered. */
+@Composable
+private fun AppPicture(app: AppInfo, preferBanner: Boolean, iconSize: Dp = 36.dp) {
+    val banner = app.banner
+    val icon = app.icon
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when {
+            preferBanner && banner != null ->
+                Image(banner, contentDescription = app.label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            icon != null -> Image(icon, contentDescription = app.label, modifier = Modifier.size(iconSize))
+            banner != null ->
+                Image(banner, contentDescription = app.label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
     }
 }
 
@@ -346,7 +419,7 @@ private fun DrawScope.drawRounds(color: Color) {
     }
 }
 
-/** Deep blue gradient with faint diagonal stripes. Drawn semi-transparent over a wallpaper picture. */
+/** Deep blue gradient with a faint hexagon pattern and darkened edges. Semi-transparent over a wallpaper. */
 @Composable
 private fun HeroBackdrop(modifier: Modifier, alpha: Float) {
     Canvas(modifier) {
@@ -354,26 +427,47 @@ private fun HeroBackdrop(modifier: Modifier, alpha: Float) {
             Brush.verticalGradient(listOf(Color(0xFF123764), Color(0xFF0A1A33), Color(0xFF050B17))),
             alpha = alpha,
         )
-        val stripe = 90.dp.toPx()
-        var x = -size.height
-        while (x < size.width) {
-            drawLine(
-                color = Color.White.copy(alpha = 0.03f),
-                start = Offset(x, size.height),
-                end = Offset(x + size.height, 0f),
-                strokeWidth = stripe / 3,
-            )
-            x += stripe
+        val radius = 34.dp.toPx()
+        val stepX = sqrt(3f) * radius
+        val stepY = 1.5f * radius
+        val stroke = Stroke(width = 1.dp.toPx())
+        var row = 0
+        var y = 0f
+        while (y < size.height + radius) {
+            var x = if (row % 2 == 1) stepX / 2 else 0f
+            while (x < size.width + stepX) {
+                drawPath(hexagon(Offset(x, y), radius), Color.White.copy(alpha = 0.035f), style = stroke)
+                x += stepX
+            }
+            y += stepY
+            row++
         }
+        drawRect(
+            Brush.radialGradient(
+                listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
+                center = center,
+                radius = size.maxDimension * 0.7f,
+            )
+        )
     }
+}
+
+/** A pointy-topped hexagon. */
+private fun hexagon(center: Offset, radius: Float) = Path().apply {
+    for (i in 0 until 6) {
+        val angle = (PI / 180 * (60 * i - 30)).toFloat()
+        val point = Offset(center.x + radius * cos(angle), center.y + radius * sin(angle))
+        if (i == 0) moveTo(point.x, point.y) else lineTo(point.x, point.y)
+    }
+    close()
 }
 
 @Composable
 private fun SkewedButton(text: String, onClick: () -> Unit) {
-    val shape = SkewedShape(8.dp)
     Button(
         onClick = onClick,
-        shape = ButtonDefaults.shape(shape),
+        shape = ButtonDefaults.shape(SkewedShape(8.dp)),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
         colors = ButtonDefaults.colors(
             containerColor = Color.White.copy(alpha = 0.10f),
             contentColor = Color.White,
@@ -381,7 +475,7 @@ private fun SkewedButton(text: String, onClick: () -> Unit) {
             focusedContentColor = Color.Black,
         ),
     ) {
-        Text(text, style = TextStyle(fontFamily = HeroFont, fontSize = 15.sp))
+        Text(text, style = TextStyle(fontFamily = HeroFont, fontSize = 14.sp))
     }
 }
 

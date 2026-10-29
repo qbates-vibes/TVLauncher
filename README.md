@@ -177,6 +177,36 @@ adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/forest.jpg
 
 If you remove the picture you're currently using, the launcher switches to the first remaining picture.
 
+## Optional: hero select logo and background music
+
+Use your own files for these. They're copied onto the TV only, so they never end up in this project or on GitHub. The launcher still never uses the internet.
+
+**Logo** (top-left of the hero select screen). A PNG with a transparent background looks best:
+
+```sh
+adb push ~/Pictures/my-logo.png /sdcard/Android/data/com.simple.tvlauncher/files/logo/
+```
+
+**Music** (plays softly while the launcher is on screen). MP3, M4A, AAC, OGG, FLAC and WAV all work. One file loops; several play in A–Z order:
+
+```sh
+adb push ~/Music/menu-theme.mp3 /sdcard/Android/data/com.simple.tvlauncher/files/music/
+```
+
+Press Home on the TV afterwards so the launcher picks up the new files.
+
+How the music behaves:
+- It fades in, and pauses as soon as you open an app or the screensaver starts.
+- It won't start if something else is already playing (for example, Spotify in the background).
+- Change the loudness, or turn it off, under **Launcher settings → Background music** (Off, Quiet, Medium, Loud). Quiet is the default.
+
+To remove files, list them and delete by name:
+
+```sh
+adb shell ls /sdcard/Android/data/com.simple.tvlauncher/files/music/
+adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/music/menu-theme.mp3
+```
+
 ---
 
 ## The Home button problem (Google TV)
