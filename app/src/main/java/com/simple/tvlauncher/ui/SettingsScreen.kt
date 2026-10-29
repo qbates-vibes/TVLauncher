@@ -115,7 +115,7 @@ fun SettingsScreen(
                 when (musicTrackCount) {
                     0 -> "No music yet. Copy MP3, M4A or OGG files into:\n$musicFolder\n(see README)"
                     1 -> "1 song. It loops while the home screen is open."
-                    else -> "$musicTrackCount songs. They play in A–Z order while the home screen is open."
+                    else -> "$musicTrackCount songs. They play once each in A–Z order, then the last one loops."
                 }
             )
         }

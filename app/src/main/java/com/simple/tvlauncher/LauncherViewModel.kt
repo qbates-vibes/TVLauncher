@@ -105,7 +105,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             combine(resumed, _musicTracks, store.settings.map { it.musicVolume }.distinctUntilChanged()) { onScreen, tracks, volume ->
                 Triple(onScreen, tracks, volume)
             }.collect { (onScreen, tracks, volume) ->
-                if (onScreen) music.play(tracks, volume.level) else music.pause()
+                if (onScreen) music.play(tracks, volume.level) else music.stop()
             }
         }
     }

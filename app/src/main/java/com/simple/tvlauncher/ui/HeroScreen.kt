@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -44,6 +45,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -75,6 +81,7 @@ import androidx.tv.material3.Text
 import com.simple.tvlauncher.LauncherState
 import com.simple.tvlauncher.data.AppInfo
 import com.simple.tvlauncher.data.Role
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 import kotlin.math.PI
 import kotlin.math.cos
@@ -120,12 +127,49 @@ fun HeroScreen(
     onOpenLauncherSettings: () -> Unit,
 ) {
     val rosterState = rememberLazyListState()
-    val firstPortrait = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    // Ends of the roster, top and bottom row, for wrapping around between Tank and Support.
+    val firstTop = remember { FocusRequester() }
+    val firstBottom = remember { FocusRequester() }
+    val lastTop = remember { FocusRequester() }
+    val lastBottom = remember { FocusRequester() }
+    val firstPortrait = firstTop
     var focusedPackage by remember { mutableStateOf<String?>(null) }
     var hasFocus by remember { mutableStateOf(false) }
     val groups = state.roles.filterValues { it.isNotEmpty() }
     val firstApp = groups.values.firstOrNull()?.firstOrNull()
     val hero = state.apps.firstOrNull { it.packageName == focusedPackage } ?: firstApp
+    val firstGroup = groups.values.firstOrNull().orEmpty()
+    val lastGroup = groups.values.lastOrNull().orEmpty()
+
+    /** Scrolls the roster to [groupIndex] and focuses [target], which may have been off screen. */
+    fun wrapTo(groupIndex: Int, target: FocusRequester) {
+        scope.launch {
+            rosterState.scrollToItem(groupIndex)
+            withFrameNanos { }
+            target.requestFocusSafely()
+        }
+    }
+
+    /** Extra modifiers for portraits at either end of the roster, so Left/Right wrap around. */
+    fun wrapModifier(groupIndex: Int, index: Int): Modifier {
+        val column = index / 2
+        val isTop = index % 2 == 0
+        var modifier: Modifier = Modifier
+        if (groupIndex == 0 && column == 0) {
+            val target = if (!isTop && lastGroup.size % 2 == 0) lastBottom else lastTop
+            modifier = modifier
+                .focusRequester(if (isTop) firstTop else firstBottom)
+                .onArrowKey(Key.DirectionLeft) { wrapTo(groups.size - 1, target) }
+        }
+        if (groupIndex == groups.size - 1 && column == (lastGroup.size - 1) / 2) {
+            val target = if (!isTop && firstGroup.size >= 2) firstBottom else firstTop
+            modifier = modifier
+                .focusRequester(if (isTop) lastTop else lastBottom)
+                .onArrowKey(Key.DirectionRight) { wrapTo(0, target) }
+        }
+        return modifier
+    }
 
     // Same focus rules as the classic screen: first portrait on load and on Home, and if the focused one disappears.
     LaunchedEffect(state.loaded, focusResetKey) {
@@ -176,15 +220,15 @@ fun HeroScreen(
                     .height(184.dp)
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)))),
                 contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 8.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                // Centered when the whole roster fits; scrolls when it doesn't.
+                horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
             ) {
-                groups.forEach { (role, apps) ->
+                groups.entries.forEachIndexed { groupIndex, (role, apps) ->
                     item(key = "group:${role.name}") {
                         RoleGroup(
                             role = role,
                             apps = apps,
-                            firstApp = firstApp,
-                            firstPortrait = firstPortrait,
+                            portraitModifier = { index -> wrapModifier(groupIndex, index) },
                             onFocused = { focusedPackage = it.packageName },
                             onLaunch = onLaunch,
                             onOptions = onOptions,
@@ -281,8 +325,7 @@ private fun ControlHint(key: String, action: String) {
 private fun RoleGroup(
     role: Role,
     apps: List<AppInfo>,
-    firstApp: AppInfo?,
-    firstPortrait: FocusRequester,
+    portraitModifier: (index: Int) -> Modifier,
     onFocused: (AppInfo) -> Unit,
     onLaunch: (AppInfo) -> Unit,
     onOptions: (AppInfo) -> Unit,
@@ -294,15 +337,15 @@ private fun RoleGroup(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             // Fill column by column, top then bottom, like a hero roster.
-            apps.chunked(2).forEach { column ->
+            apps.chunked(2).forEachIndexed { columnIndex, column ->
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    column.forEach { app ->
+                    column.forEachIndexed { row, app ->
                         Portrait(
                             app = app,
                             onFocused = { onFocused(app) },
                             onClick = { onLaunch(app) },
                             onLongClick = { onOptions(app) },
-                            modifier = if (app == firstApp) Modifier.focusRequester(firstPortrait) else Modifier,
+                            modifier = portraitModifier(columnIndex * 2 + row),
                         )
                     }
                 }
@@ -342,6 +385,13 @@ private fun Portrait(
             AppPicture(app, preferBanner = false, iconSize = 38.dp)
         }
     }
+}
+
+/** Runs [action] instead of moving focus when [key] is pressed. */
+private fun Modifier.onArrowKey(key: Key, action: () -> Unit): Modifier = onPreviewKeyEvent { event ->
+    if (event.key != key) return@onPreviewKeyEvent false
+    if (event.type == KeyEventType.KeyDown) action()
+    true
 }
 
 @Composable

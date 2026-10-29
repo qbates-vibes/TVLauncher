@@ -187,7 +187,7 @@ Use your own files for these. They're copied onto the TV only, so they never end
 adb push ~/Pictures/my-logo.png /sdcard/Android/data/com.simple.tvlauncher/files/logo/
 ```
 
-**Music** (plays softly while the launcher is on screen). MP3, M4A, AAC, OGG, FLAC and WAV all work. One file loops; several play in A–Z order:
+**Music** (plays softly while the launcher is on screen). MP3, M4A, AAC, OGG, FLAC and WAV all work. Files play once each in A–Z order, and the last one loops. So a short intro followed by a long theme works well; name them so they sort in the right order (for example `1-intro.mp3` and `2-theme.mp3`):
 
 ```sh
 adb push ~/Music/menu-theme.mp3 /sdcard/Android/data/com.simple.tvlauncher/files/music/
@@ -196,7 +196,7 @@ adb push ~/Music/menu-theme.mp3 /sdcard/Android/data/com.simple.tvlauncher/files
 Press Home on the TV afterwards so the launcher picks up the new files.
 
 How the music behaves:
-- It fades in, and pauses as soon as you open an app or the screensaver starts.
+- It fades in, and stops as soon as you open an app or the screensaver starts. When you come back to the home screen, it starts over from the first file.
 - It won't start if something else is already playing (for example, Spotify in the background).
 - Change the loudness, or turn it off, under **Launcher settings → Background music** (Off, Quiet, Medium, Loud). Quiet is the default.
 
