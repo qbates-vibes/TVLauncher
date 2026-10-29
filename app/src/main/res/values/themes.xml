@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.TVLauncher" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

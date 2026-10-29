@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 TV banner: a simple house on a dark background. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#FF1F2933"
+        android:pathData="M0,0h320v180h-320z" />
+    <path
+        android:fillColor="#FF4FC3F7"
+        android:fillType="evenOdd"
+        android:pathData="M160,52 L204,90 L192,90 L192,130 L128,130 L128,90 L116,90 Z M152,130 L152,106 L168,106 L168,130 Z" />
+</vector>

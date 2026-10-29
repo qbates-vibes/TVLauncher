@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Simple Launcher</string>
+    <string name="accessibility_label">Simple Launcher Home button</string>
+    <string name="accessibility_description">Makes the remote\'s Home button open Simple Launcher instead of the stock Google TV home screen. It only watches for the Home key and for the stock home screen opening. It does not read the screen and collects no data.</string>
+</resources>
