@@ -12,6 +12,7 @@ import com.simple.tvlauncher.data.SettingsStore
 import com.simple.tvlauncher.data.TvInput
 import com.simple.tvlauncher.data.TvInputs
 import com.simple.tvlauncher.data.Wallpaper
+import com.simple.tvlauncher.data.WallpaperOption
 import com.simple.tvlauncher.data.inSavedOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,18 +52,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LauncherState())
 
-    /** Path + last-modified time, so the picture is only re-decoded when the file changes. */
-    private val wallpaperFile = MutableStateFlow<Pair<String, Long>?>(null)
+    /** Pictures in the wallpaper folder as path + last-modified time, so they're only re-decoded when files change. */
+    private val wallpaperFiles = MutableStateFlow<List<Pair<String, Long>>>(emptyList())
 
-    val wallpaper: StateFlow<ImageBitmap?> = combine(
-        store.settings.map { it.useWallpaper }.distinctUntilChanged(),
-        wallpaperFile,
-    ) { use, file ->
-        if (use && file != null) withContext(Dispatchers.IO) { Wallpaper.load(File(file.first)) } else null
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val wallpaper: StateFlow<ImageBitmap?> = combine(store.settings, wallpaperFiles) { settings, files ->
+        if (!settings.useWallpaper) return@combine null
+        // If the chosen picture was deleted (or none was chosen yet), use the first one.
+        files.firstOrNull { File(it.first).name == settings.wallpaperName } ?: files.firstOrNull()
+    }
+        .distinctUntilChanged()
+        .map { file -> file?.let { withContext(Dispatchers.IO) { Wallpaper.load(File(it.first)) } } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val wallpaperFound: StateFlow<Boolean> =
-        wallpaperFile.map { it != null }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val wallpaperOptions: StateFlow<List<WallpaperOption>> = wallpaperFiles
+        .map { files ->
+            withContext(Dispatchers.IO) {
+                files.map { (path, _) -> File(path).let { WallpaperOption(it.name, Wallpaper.load(it, maxWidth = 320)) } }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val wallpaperFolder: String = Wallpaper.folderPath(application)
 
@@ -76,7 +84,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun onResume() {
         _homeServiceEnabled.value = HomeButtonService.isEnabled(app)
         viewModelScope.launch(Dispatchers.IO) {
-            wallpaperFile.value = Wallpaper.find(app)?.let { it.path to it.lastModified() }
+            wallpaperFiles.value = Wallpaper.list(app).map { it.path to it.lastModified() }
             _inputs.value = TvInputs.list(app)
         }
     }
@@ -99,12 +107,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }
     fun setHidden(pkg: String, hidden: Boolean) = viewModelScope.launch { store.setHidden(pkg, hidden) }
     fun setUse24HourClock(enabled: Boolean) = viewModelScope.launch { store.setUse24HourClock(enabled) }
-    fun setUseWallpaper(enabled: Boolean) = viewModelScope.launch { store.setUseWallpaper(enabled) }
-
-    fun setBackgroundColor(color: Long) = viewModelScope.launch {
-        store.setBackgroundColor(color)
-        store.setUseWallpaper(false)
-    }
+    fun setWallpaper(name: String) = viewModelScope.launch { store.setWallpaper(name) }
+    fun setBackgroundColor(color: Long) = viewModelScope.launch { store.setBackgroundColor(color) }
 
     private fun toast(message: String) = Toast.makeText(app, message, Toast.LENGTH_SHORT).show()
 }

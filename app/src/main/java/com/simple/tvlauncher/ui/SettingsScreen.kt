@@ -3,13 +3,17 @@
 package com.simple.tvlauncher.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -21,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -28,6 +34,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.simple.tvlauncher.LauncherState
+import com.simple.tvlauncher.data.WallpaperOption
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
 private val BackgroundColors = listOf(
@@ -42,12 +49,12 @@ private val BackgroundColors = listOf(
 @Composable
 fun SettingsScreen(
     state: LauncherState,
-    wallpaperFound: Boolean,
+    wallpaperOptions: List<WallpaperOption>,
     wallpaperFolder: String,
     homeServiceEnabled: Boolean,
     onBack: () -> Unit,
     onSetBackgroundColor: (Long) -> Unit,
-    onSetUseWallpaper: (Boolean) -> Unit,
+    onSelectWallpaper: (String) -> Unit,
     onSetUse24HourClock: (Boolean) -> Unit,
     onUnhide: (String) -> Unit,
     onResetAppOrder: () -> Unit,
@@ -72,7 +79,7 @@ fun SettingsScreen(
             }
         }
 
-        item { SectionTitle("Background") }
+        item { SectionTitle("Background color") }
         item {
             Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 BackgroundColors.forEach { color ->
@@ -84,17 +91,30 @@ fun SettingsScreen(
                 }
             }
         }
-        item {
-            LauncherButton(
-                text = "Wallpaper picture: " + if (settings.useWallpaper) "On" else "Off",
-                onClick = { onSetUseWallpaper(!settings.useWallpaper) },
-            )
-        }
-        item {
-            HelpText(
-                if (wallpaperFound) "Wallpaper picture found."
-                else "No picture yet. Copy one named wallpaper.jpg (or .png) into:\n$wallpaperFolder\n(see README for the adb push command)"
-            )
+        item { SectionTitle("Wallpaper picture") }
+        if (wallpaperOptions.isEmpty()) {
+            item {
+                HelpText("No pictures yet. Copy JPG, PNG or WebP pictures into:\n$wallpaperFolder\n(see README for the adb push command)")
+            }
+        } else {
+            // Same fallback as the home screen: a missing or unset choice means the first picture.
+            val selectedName = (wallpaperOptions.firstOrNull { it.name == settings.wallpaperName } ?: wallpaperOptions.first()).name
+            item {
+                LazyRow(
+                    modifier = Modifier.bleed(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    items(wallpaperOptions, key = { "wallpaper:${it.name}" }) { option ->
+                        WallpaperThumbnail(
+                            option = option,
+                            selected = settings.useWallpaper && option.name == selectedName,
+                            onClick = { onSelectWallpaper(option.name) },
+                        )
+                    }
+                }
+            }
+            item { HelpText("To add more, copy pictures into $wallpaperFolder (see README).") }
         }
 
         item { SectionTitle("Clock") }
@@ -138,6 +158,42 @@ fun SettingsScreen(
 @Composable
 private fun HelpText(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.7f))
+}
+
+@Composable
+private fun WallpaperThumbnail(option: WallpaperOption, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(width = 192.dp, height = 108.dp),
+        shape = ClickableSurfaceDefaults.shape(shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = TileColor,
+            contentColor = Color.White,
+            focusedContainerColor = TileColor,
+            focusedContentColor = Color.White,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        border = ClickableSurfaceDefaults.border(
+            border = if (selected) Border(BorderStroke(2.dp, Color.White.copy(alpha = 0.6f)), shape = shape) else Border.None,
+            focusedBorder = Border(BorderStroke(3.dp, Color.White), shape = shape),
+        ),
+    ) {
+        option.thumbnail?.let {
+            Image(it, contentDescription = option.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
+        Text(
+            text = (if (selected) "✓ " else "") + option.name.substringBeforeLast('.'),
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+        )
+    }
 }
 
 @Composable

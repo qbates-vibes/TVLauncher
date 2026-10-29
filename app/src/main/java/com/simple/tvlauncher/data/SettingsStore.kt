@@ -21,6 +21,8 @@ data class LauncherSettings(
     val hidden: Set<String> = emptySet(),
     val backgroundColor: Long = DEFAULT_BACKGROUND,
     val useWallpaper: Boolean = false,
+    /** File name of the chosen wallpaper picture. */
+    val wallpaperName: String? = null,
     val use24HourClock: Boolean = false,
     /** Package names in the order you arranged the app grid. Apps not listed go at the end, A–Z. */
     val appOrder: List<String> = emptyList(),
@@ -43,6 +45,7 @@ class SettingsStore(context: Context) {
                 hidden = p[HIDDEN] ?: emptySet(),
                 backgroundColor = p[BACKGROUND] ?: LauncherSettings.DEFAULT_BACKGROUND,
                 useWallpaper = p[USE_WALLPAPER] ?: false,
+                wallpaperName = p[WALLPAPER_NAME],
                 use24HourClock = p[USE_24H] ?: false,
                 appOrder = p.list(APP_ORDER),
             )
@@ -84,8 +87,17 @@ class SettingsStore(context: Context) {
         if (hidden) p.setFavorites(p.list(FAVORITES) - pkg)
     }
 
-    suspend fun setBackgroundColor(color: Long) = store.edit { it[BACKGROUND] = color }
-    suspend fun setUseWallpaper(enabled: Boolean) = store.edit { it[USE_WALLPAPER] = enabled }
+    /** Shows a solid color, turning the wallpaper picture off. */
+    suspend fun setBackgroundColor(color: Long) = store.edit {
+        it[BACKGROUND] = color
+        it[USE_WALLPAPER] = false
+    }
+
+    suspend fun setWallpaper(name: String) = store.edit {
+        it[WALLPAPER_NAME] = name
+        it[USE_WALLPAPER] = true
+    }
+
     suspend fun setUse24HourClock(enabled: Boolean) = store.edit { it[USE_24H] = enabled }
 
     private fun Preferences.list(key: Preferences.Key<String>): List<String> =
@@ -102,6 +114,7 @@ class SettingsStore(context: Context) {
         val HIDDEN = stringSetPreferencesKey("hidden")
         val BACKGROUND = longPreferencesKey("background_color")
         val USE_WALLPAPER = booleanPreferencesKey("use_wallpaper")
+        val WALLPAPER_NAME = stringPreferencesKey("wallpaper_name")
         val USE_24H = booleanPreferencesKey("use_24h_clock")
     }
 }

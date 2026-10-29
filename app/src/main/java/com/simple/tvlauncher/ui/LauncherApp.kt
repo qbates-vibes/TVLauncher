@@ -39,7 +39,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val wallpaper by viewModel.wallpaper.collectAsStateWithLifecycle()
-    val wallpaperFound by viewModel.wallpaperFound.collectAsStateWithLifecycle()
+    val wallpaperOptions by viewModel.wallpaperOptions.collectAsStateWithLifecycle()
     val inputs by viewModel.inputs.collectAsStateWithLifecycle()
     val homeServiceEnabled by viewModel.homeServiceEnabled.collectAsStateWithLifecycle()
     val homePressCount by homePresses.collectAsStateWithLifecycle()
@@ -103,12 +103,12 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     )
                     Screen.Settings -> SettingsScreen(
                         state = state,
-                        wallpaperFound = wallpaperFound,
+                        wallpaperOptions = wallpaperOptions,
                         wallpaperFolder = viewModel.wallpaperFolder,
                         homeServiceEnabled = homeServiceEnabled,
                         onBack = { screen = Screen.Home },
                         onSetBackgroundColor = { viewModel.setBackgroundColor(it) },
-                        onSetUseWallpaper = { viewModel.setUseWallpaper(it) },
+                        onSelectWallpaper = { viewModel.setWallpaper(it) },
                         onSetUse24HourClock = { viewModel.setUse24HourClock(it) },
                         onUnhide = { viewModel.setHidden(it, false) },
                         onResetAppOrder = { viewModel.resetAppOrder() },

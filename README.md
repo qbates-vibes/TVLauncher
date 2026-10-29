@@ -7,7 +7,7 @@ A clean, fast, ad-free home screen for Android TV / Google TV.
 - Hide apps you never use
 - Shortcuts to TV Settings and to TV inputs (HDMI)
 - Clock in the top-right corner
-- Dark theme with a solid color or your own wallpaper picture
+- Dark theme with a solid color or one of your own wallpaper pictures
 - **No internet permission.** No recommendations, ads or tracking. Everything is stored on the TV.
 
 Built with Kotlin + Jetpack Compose for TV. Works on Android 9 and newer (every Google TV qualifies).
@@ -146,16 +146,36 @@ You should see `holders=com.simple.tvlauncher`.
 
 Now press **Home** on the remote. If Simple Launcher opens, you're done. If the stock Google TV screen still opens, read the next section.
 
-## Optional: wallpaper picture
+## Optional: wallpaper pictures
+
+You can copy as many pictures as you like to the TV, then choose between them on the TV. Landscape 1920×1080 JPG, PNG or WebP pictures work best.
 
 1. Open Simple Launcher at least once, so the TV creates the folder for it.
-2. Copy a picture from your Mac. A landscape 1920×1080 JPG or PNG works best.
+2. Copy pictures from your Mac. You can list several at once; keep the folder path at the end, including the final `/`:
    ```sh
-   adb push ~/Pictures/my-picture.jpg /sdcard/Android/data/com.simple.tvlauncher/files/wallpaper.jpg
+   adb push ~/Pictures/beach.jpg ~/Pictures/forest.jpg /sdcard/Android/data/com.simple.tvlauncher/files/
    ```
-3. On the TV, go to **Launcher settings → Wallpaper picture: On**.
+   Or copy every picture in a folder on your Mac (the `/.` at the end of the first path means "the folder's contents"):
+   ```sh
+   adb push ~/Pictures/TV\ Wallpapers/. /sdcard/Android/data/com.simple.tvlauncher/files/
+   ```
+3. On the TV, open **Launcher settings**. Under **Wallpaper picture**, select the one you want and press OK. The selected picture shows a ✓.
 
-To change it, push a new file with the same name. To go back to a plain color, pick a color in Launcher settings.
+To go back to a plain color, pick a color under **Background color**.
+
+See which pictures are on the TV:
+
+```sh
+adb shell ls /sdcard/Android/data/com.simple.tvlauncher/files/
+```
+
+Remove one (use the exact name from the list above):
+
+```sh
+adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/forest.jpg
+```
+
+If you remove the picture you're currently using, the launcher switches to the first remaining picture.
 
 ---
 
@@ -284,7 +304,7 @@ app/src/main/
     data/AppRepository.kt      Lists TV + regular apps, removes duplicates, refreshes on install/uninstall
     data/SettingsStore.kt      Favorites, hidden apps, colors, clock format (DataStore)
     data/TvInputs.kt           HDMI and other inputs via TvInputManager
-    data/Wallpaper.kt          Loads the wallpaper picture you push with adb
+    data/Wallpaper.kt          Lists and loads the wallpaper pictures you push with adb
     ui/                        Compose for TV screens: home grid, favorites row, dialogs, settings, clock
 ```
 
