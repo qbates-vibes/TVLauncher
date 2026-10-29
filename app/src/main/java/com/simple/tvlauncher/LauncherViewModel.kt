@@ -7,6 +7,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.simple.tvlauncher.data.AppInfo
 import com.simple.tvlauncher.data.AppRepository
+import com.simple.tvlauncher.data.HomeStyle
+import com.simple.tvlauncher.data.Role
 import com.simple.tvlauncher.data.LauncherSettings
 import com.simple.tvlauncher.data.SettingsStore
 import com.simple.tvlauncher.data.TvInput
@@ -34,7 +36,11 @@ data class LauncherState(
     /** Every visible (not hidden) app, favorites included. */
     val apps: List<AppInfo> = emptyList(),
     val hiddenApps: List<AppInfo> = emptyList(),
-)
+    /** Visible apps grouped by hero-select role, in Tank, Damage, Support order. */
+    val roles: Map<Role, List<AppInfo>> = emptyMap(),
+) {
+    fun roleOf(app: AppInfo): Role = settings.roleOverrides[app.packageName] ?: Role.default(app)
+}
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
     private val app get() = getApplication<Application>()
@@ -43,13 +49,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     val state: StateFlow<LauncherState> = combine(repository.apps(), store.settings) { apps, settings ->
         val byPackage = apps.associateBy { it.packageName }
+        val visible = apps.filter { it.packageName !in settings.hidden }.inSavedOrder(settings.appOrder) { it.packageName }
         LauncherState(
             loaded = true,
             settings = settings,
             favorites = settings.favorites.filter { it !in settings.hidden }.mapNotNull { byPackage[it] },
-            apps = apps.filter { it.packageName !in settings.hidden }.inSavedOrder(settings.appOrder) { it.packageName },
+            apps = visible,
             hiddenApps = apps.filter { it.packageName in settings.hidden },
-        )
+        ).let { state ->
+            val grouped = visible.groupBy { state.roleOf(it) }
+            state.copy(roles = Role.entries.associateWith { grouped[it].orEmpty() })
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LauncherState())
 
     /** Pictures in the wallpaper folder as path + last-modified time, so they're only re-decoded when files change. */
@@ -104,6 +114,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         store.moveApp(pkg, delta, visibleAToZ)
     }
 
+    fun setHomeStyle(style: HomeStyle) = viewModelScope.launch { store.setHomeStyle(style) }
+    fun setRole(pkg: String, role: Role) = viewModelScope.launch { store.setRole(pkg, role) }
     fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }
     fun setHidden(pkg: String, hidden: Boolean) = viewModelScope.launch { store.setHidden(pkg, hidden) }
     fun setUse24HourClock(enabled: Boolean) = viewModelScope.launch { store.setUse24HourClock(enabled) }

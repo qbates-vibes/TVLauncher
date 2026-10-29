@@ -25,8 +25,10 @@ data class AppInfo(
     val isTvApp: Boolean,
     /** 16:9 TV banner, if the app provides one. */
     val banner: ImageBitmap?,
-    /** Square icon, used only when there is no banner. */
+    /** Square icon: shown when there is no banner, and as the hero-select portrait. */
     val icon: ImageBitmap?,
+    /** ApplicationInfo.CATEGORY_* the app declares, used to pick its default hero-select role. */
+    val category: Int,
 )
 
 class AppRepository(context: Context) {
@@ -86,7 +88,8 @@ class AppRepository(context: Context) {
             label = activity.loadLabel(pm).toString(),
             isTvApp = isTv,
             banner = banner?.toBitmap(BANNER_WIDTH, BANNER_HEIGHT)?.asImageBitmap(),
-            icon = if (banner == null) activity.loadIcon(pm).toBitmap(ICON_SIZE, ICON_SIZE).asImageBitmap() else null,
+            icon = activity.loadIcon(pm).toBitmap(ICON_SIZE, ICON_SIZE).asImageBitmap(),
+            category = activity.applicationInfo.category,
         )
     } catch (e: Exception) {
         Log.w(TAG, "Skipping ${activity.packageName}", e)

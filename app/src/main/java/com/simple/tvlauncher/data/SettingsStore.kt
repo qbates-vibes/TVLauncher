@@ -26,11 +26,16 @@ data class LauncherSettings(
     val use24HourClock: Boolean = false,
     /** Package names in the order you arranged the app grid. Apps not listed go at the end, A–Z. */
     val appOrder: List<String> = emptyList(),
+    val homeStyle: HomeStyle = HomeStyle.HeroSelect,
+    /** Roles you picked yourself; other apps get [Role.default]. */
+    val roleOverrides: Map<String, Role> = emptyMap(),
 ) {
     companion object {
         const val DEFAULT_BACKGROUND = 0xFF101418
     }
 }
+
+enum class HomeStyle { HeroSelect, Classic }
 
 private val Context.dataStore by preferencesDataStore(name = "launcher_settings")
 
@@ -48,6 +53,8 @@ class SettingsStore(context: Context) {
                 wallpaperName = p[WALLPAPER_NAME],
                 use24HourClock = p[USE_24H] ?: false,
                 appOrder = p.list(APP_ORDER),
+                homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.HeroSelect,
+                roleOverrides = p.roleOverrides(),
             )
         }
 
@@ -79,6 +86,12 @@ class SettingsStore(context: Context) {
         p[APP_ORDER] = list.joinToString(",")
     }
 
+    suspend fun setHomeStyle(style: HomeStyle) = store.edit { it[HOME_STYLE] = style.name }
+
+    suspend fun setRole(pkg: String, role: Role) = store.edit { p ->
+        p[ROLES] = (p.roleOverrides() + (pkg to role)).entries.joinToString(",") { "${it.key}=${it.value.name}" }
+    }
+
     suspend fun resetAppOrder() = store.edit { it.remove(APP_ORDER) }
 
     suspend fun setHidden(pkg: String, hidden: Boolean) = store.edit { p ->
@@ -103,6 +116,13 @@ class SettingsStore(context: Context) {
     private fun Preferences.list(key: Preferences.Key<String>): List<String> =
         this[key]?.split(',')?.filter { it.isNotBlank() } ?: emptyList()
 
+    /** Stored as "package=Role,package=Role". */
+    private fun Preferences.roleOverrides(): Map<String, Role> =
+        list(ROLES).mapNotNull { entry ->
+            val (pkg, roleName) = entry.split('=').takeIf { it.size == 2 } ?: return@mapNotNull null
+            Role.entries.firstOrNull { it.name == roleName }?.let { pkg to it }
+        }.toMap()
+
     private fun MutablePreferences.setFavorites(list: List<String>) {
         this[FAVORITES] = list.joinToString(",")
     }
@@ -111,6 +131,8 @@ class SettingsStore(context: Context) {
         // Stored as comma-separated strings because string sets don't keep order.
         val FAVORITES = stringPreferencesKey("favorites")
         val APP_ORDER = stringPreferencesKey("app_order")
+        val HOME_STYLE = stringPreferencesKey("home_style")
+        val ROLES = stringPreferencesKey("role_overrides")
         val HIDDEN = stringSetPreferencesKey("hidden")
         val BACKGROUND = longPreferencesKey("background_color")
         val USE_WALLPAPER = booleanPreferencesKey("use_wallpaper")
