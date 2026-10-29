@@ -45,9 +45,9 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
     val homePressCount by homePresses.collectAsStateWithLifecycle()
 
     var screen by remember { mutableStateOf(Screen.Home) }
-    var optionsFor by remember { mutableStateOf<AppInfo?>(null) }
+    var optionsFor by remember { mutableStateOf<Pair<AppInfo, Section>?>(null) }
     var showInputs by remember { mutableStateOf(false) }
-    var movingPackage by remember { mutableStateOf<String?>(null) }
+    var moving by remember { mutableStateOf<Moving?>(null) }
     var focusReset by remember { mutableIntStateOf(0) }
 
     // Pressing Home while already here returns to a clean home screen.
@@ -55,14 +55,14 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
         screen = Screen.Home
         optionsFor = null
         showInputs = false
-        movingPackage = null
+        moving = null
         focusReset++
     }
 
     // Back never leaves the home screen; it only steps out of sub-screens.
     BackHandler {
         when {
-            movingPackage != null -> movingPackage = null
+            moving != null -> moving = null
             screen == Screen.Settings -> screen = Screen.Home
         }
     }
@@ -85,11 +85,18 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     Screen.Home -> HomeScreen(
                         state = state,
                         focusResetKey = focusReset,
-                        movingPackage = movingPackage,
+                        moving = moving,
                         onLaunch = { viewModel.launch(it) },
-                        onOptions = { optionsFor = it },
-                        onMove = { delta -> movingPackage?.let { viewModel.moveFavorite(it, delta) } },
-                        onStopMoving = { movingPackage = null },
+                        onOptions = { app, section -> optionsFor = app to section },
+                        onMove = { delta ->
+                            moving?.let {
+                                when (it.section) {
+                                    Section.Favorites -> viewModel.moveFavorite(it.packageName, delta)
+                                    Section.Apps -> viewModel.moveApp(it.packageName, delta)
+                                }
+                            }
+                        },
+                        onStopMoving = { moving = null },
                         onOpenInputs = { showInputs = true },
                         onOpenTvSettings = { startSafely(context, Intent(Settings.ACTION_SETTINGS)) },
                         onOpenLauncherSettings = { screen = Screen.Settings },
@@ -104,6 +111,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onSetUseWallpaper = { viewModel.setUseWallpaper(it) },
                         onSetUse24HourClock = { viewModel.setUse24HourClock(it) },
                         onUnhide = { viewModel.setHidden(it, false) },
+                        onResetAppOrder = { viewModel.resetAppOrder() },
                         onOpenAccessibilitySettings = {
                             startSafely(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },
@@ -111,11 +119,14 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                 }
             }
 
-            optionsFor?.let { app ->
-                val isFavorite = app.packageName in state.settings.favorites
+            optionsFor?.let { (app, section) ->
                 AppOptionsDialog(
                     app = app,
-                    isFavorite = isFavorite,
+                    isFavorite = app.packageName in state.settings.favorites,
+                    moveLabel = when (section) {
+                        Section.Favorites -> "Move (reorder favorites)"
+                        Section.Apps -> "Move (reorder all apps)"
+                    },
                     onDismiss = { optionsFor = null },
                     onOpen = {
                         optionsFor = null
@@ -127,7 +138,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     },
                     onStartMoving = {
                         optionsFor = null
-                        movingPackage = app.packageName
+                        moving = Moving(app.packageName, section)
                     },
                     onHide = {
                         optionsFor = null

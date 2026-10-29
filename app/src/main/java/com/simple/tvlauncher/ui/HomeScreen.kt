@@ -1,7 +1,8 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class)
+@file:OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package com.simple.tvlauncher.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,7 +19,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,13 +48,18 @@ private val SidePadding = 48.dp
 private val TileSpacing = 20.dp
 private val FavoriteWidth = 200.dp
 
+enum class Section { Favorites, Apps }
+
+/** The tile currently being moved, and which section it's being moved in. */
+data class Moving(val packageName: String, val section: Section)
+
 @Composable
 fun HomeScreen(
     state: LauncherState,
     focusResetKey: Int,
-    movingPackage: String?,
+    moving: Moving?,
     onLaunch: (AppInfo) -> Unit,
-    onOptions: (AppInfo) -> Unit,
+    onOptions: (AppInfo, Section) -> Unit,
     onMove: (delta: Int) -> Unit,
     onStopMoving: () -> Unit,
     onOpenInputs: () -> Unit,
@@ -114,10 +121,10 @@ fun HomeScreen(
                     item(key = "favorites", span = { GridItemSpan(maxLineSpan) }) {
                         FavoritesRow(
                             favorites = state.favorites,
-                            movingPackage = movingPackage,
+                            movingPackage = moving?.takeIf { it.section == Section.Favorites }?.packageName,
                             firstTile = firstTile,
                             onLaunch = onLaunch,
-                            onOptions = onOptions,
+                            onOptions = { onOptions(it, Section.Favorites) },
                             onMove = onMove,
                             onStopMoving = onStopMoving,
                         )
@@ -128,10 +135,15 @@ fun HomeScreen(
                 }
                 itemsIndexed(state.apps, key = { _, app -> "app:${app.packageName}" }) { index, app ->
                     val isFirst = index == 0 && state.favorites.isEmpty()
-                    AppTile(
+                    MovableTile(
                         app = app,
+                        moving = moving == Moving(app.packageName, Section.Apps),
+                        position = index,
+                        verticalStep = COLUMNS,
                         onClick = { onLaunch(app) },
-                        onLongClick = { onOptions(app) },
+                        onLongClick = { onOptions(app, Section.Apps) },
+                        onMove = onMove,
+                        onStopMoving = onStopMoving,
                         modifier = if (isFirst) Modifier.focusRequester(firstTile) else Modifier,
                     )
                 }
@@ -150,60 +162,88 @@ private fun FavoritesRow(
     onMove: (delta: Int) -> Unit,
     onStopMoving: () -> Unit,
 ) {
-    val rowState = rememberLazyListState()
-    val movingIndex = favorites.indexOfFirst { it.packageName == movingPackage }
-
-    // Keep the tile being moved on screen.
-    LaunchedEffect(movingIndex) {
-        if (movingIndex < 0) return@LaunchedEffect
-        val visible = rowState.layoutInfo.visibleItemsInfo
-        val first = visible.firstOrNull()?.index ?: return@LaunchedEffect
-        val last = visible.last().index
-        when {
-            movingIndex <= first -> rowState.animateScrollToItem(movingIndex)
-            movingIndex >= last -> rowState.animateScrollToItem((movingIndex - (last - first) + 1).coerceAtLeast(0))
-        }
-    }
-
     LazyRow(
-        state = rowState,
         modifier = Modifier.bleed(12.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(TileSpacing),
     ) {
         itemsIndexed(favorites, key = { _, app -> "fav:${app.packageName}" }) { index, app ->
-            val moving = app.packageName == movingPackage
-            val requester = remember { FocusRequester() }
-            LaunchedEffect(moving) {
-                if (moving) requester.requestFocusSafely()
-            }
-            AppTile(
+            MovableTile(
                 app = app,
+                moving = app.packageName == movingPackage,
+                position = index,
+                verticalStep = null,
                 onClick = { onLaunch(app) },
                 onLongClick = { onOptions(app) },
-                moving = moving,
+                onMove = onMove,
+                onStopMoving = onStopMoving,
                 modifier = Modifier
                     .width(FavoriteWidth)
-                    .focusRequester(requester)
-                    .then(if (index == 0) Modifier.focusRequester(firstTile) else Modifier)
-                    .moveModeKeys(moving, onMove, onStopMoving),
+                    .then(if (index == 0) Modifier.focusRequester(firstTile) else Modifier),
             )
         }
     }
 }
 
-/** While a favorite is being moved, Left/Right move it and OK/Back finish. */
-private fun Modifier.moveModeKeys(active: Boolean, onMove: (Int) -> Unit, onDone: () -> Unit): Modifier =
-    if (!active) this else onPreviewKeyEvent { event ->
-        val isDown = event.type == KeyEventType.KeyDown
-        when (event.key) {
-            Key.DirectionLeft -> { if (isDown) onMove(-1); true }
-            Key.DirectionRight -> { if (isDown) onMove(1); true }
-            Key.DirectionUp, Key.DirectionDown -> true
-            Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Back -> {
-                if (event.type == KeyEventType.KeyUp) onDone()
-                true
-            }
-            else -> false
-        }
+/** An [AppTile] that can be put in move mode: it grabs focus and stays on screen as it moves. */
+@Composable
+private fun MovableTile(
+    app: AppInfo,
+    moving: Boolean,
+    position: Int,
+    verticalStep: Int?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onMove: (delta: Int) -> Unit,
+    onStopMoving: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusRequester = remember { FocusRequester() }
+    val bringIntoView = remember { BringIntoViewRequester() }
+    LaunchedEffect(moving) {
+        if (moving) focusRequester.requestFocusSafely()
     }
+    LaunchedEffect(moving, position) {
+        if (!moving) return@LaunchedEffect
+        withFrameNanos { }
+        bringIntoView.bringIntoView()
+    }
+    AppTile(
+        app = app,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        moving = moving,
+        modifier = modifier
+            .focusRequester(focusRequester)
+            .bringIntoViewRequester(bringIntoView)
+            .moveModeKeys(moving, verticalStep, onMove, onStopMoving),
+    )
+}
+
+/**
+ * While a tile is being moved: Left/Right move it one place, Up/Down move it [verticalStep]
+ * places (or do nothing if null), and OK/Back finish.
+ */
+private fun Modifier.moveModeKeys(
+    active: Boolean,
+    verticalStep: Int?,
+    onMove: (Int) -> Unit,
+    onDone: () -> Unit,
+): Modifier = if (!active) this else onPreviewKeyEvent { event ->
+    val isDown = event.type == KeyEventType.KeyDown
+    fun move(delta: Int?): Boolean {
+        if (isDown && delta != null) onMove(delta)
+        return true
+    }
+    when (event.key) {
+        Key.DirectionLeft -> move(-1)
+        Key.DirectionRight -> move(1)
+        Key.DirectionUp -> move(verticalStep?.let { -it })
+        Key.DirectionDown -> move(verticalStep)
+        Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Back -> {
+            if (event.type == KeyEventType.KeyUp) onDone()
+            true
+        }
+        else -> false
+    }
+}

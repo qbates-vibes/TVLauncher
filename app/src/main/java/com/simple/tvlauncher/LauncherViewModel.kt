@@ -12,6 +12,7 @@ import com.simple.tvlauncher.data.SettingsStore
 import com.simple.tvlauncher.data.TvInput
 import com.simple.tvlauncher.data.TvInputs
 import com.simple.tvlauncher.data.Wallpaper
+import com.simple.tvlauncher.data.inSavedOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,7 +46,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             loaded = true,
             settings = settings,
             favorites = settings.favorites.filter { it !in settings.hidden }.mapNotNull { byPackage[it] },
-            apps = apps.filter { it.packageName !in settings.hidden },
+            apps = apps.filter { it.packageName !in settings.hidden }.inSavedOrder(settings.appOrder) { it.packageName },
             hiddenApps = apps.filter { it.packageName in settings.hidden },
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LauncherState())
@@ -90,6 +91,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleFavorite(pkg: String) = viewModelScope.launch { store.toggleFavorite(pkg) }
     fun moveFavorite(pkg: String, delta: Int) = viewModelScope.launch { store.moveFavorite(pkg, delta) }
+    fun moveApp(pkg: String, delta: Int) = viewModelScope.launch {
+        val visibleAToZ = state.value.apps.sortedBy { it.label.lowercase() }.map { it.packageName }
+        store.moveApp(pkg, delta, visibleAToZ)
+    }
+
+    fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }
     fun setHidden(pkg: String, hidden: Boolean) = viewModelScope.launch { store.setHidden(pkg, hidden) }
     fun setUse24HourClock(enabled: Boolean) = viewModelScope.launch { store.setUse24HourClock(enabled) }
     fun setUseWallpaper(enabled: Boolean) = viewModelScope.launch { store.setUseWallpaper(enabled) }

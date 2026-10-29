@@ -15,6 +15,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 fun AppOptionsDialog(
     app: AppInfo,
     isFavorite: Boolean,
+    moveLabel: String,
     onDismiss: () -> Unit,
     onOpen: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -25,7 +26,7 @@ fun AppOptionsDialog(
     LauncherDialog(title = app.label, onDismiss = onDismiss) { firstItem ->
         DialogButton("Open", onOpen, Modifier.focusRequester(firstItem))
         DialogButton(if (isFavorite) "Remove from favorites" else "Add to favorites", onToggleFavorite)
-        if (isFavorite) DialogButton("Move (reorder favorites)", onStartMoving)
+        DialogButton(moveLabel, onStartMoving)
         DialogButton("Hide app", onHide)
         DialogButton("App info", onAppInfo)
     }

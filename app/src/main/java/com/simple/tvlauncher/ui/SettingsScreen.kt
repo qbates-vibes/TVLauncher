@@ -50,6 +50,7 @@ fun SettingsScreen(
     onSetUseWallpaper: (Boolean) -> Unit,
     onSetUse24HourClock: (Boolean) -> Unit,
     onUnhide: (String) -> Unit,
+    onResetAppOrder: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
 ) {
     val settings = state.settings
@@ -102,6 +103,17 @@ fun SettingsScreen(
                 text = "24-hour clock: " + if (settings.use24HourClock) "On" else "Off",
                 onClick = { onSetUse24HourClock(!settings.use24HourClock) },
             )
+        }
+
+        item { SectionTitle("App order") }
+        item {
+            HelpText(
+                if (settings.appOrder.isEmpty()) "All apps are sorted A–Z. To rearrange, hold OK on an app and choose Move."
+                else "You've arranged the All apps grid yourself. New apps are added at the end."
+            )
+        }
+        if (settings.appOrder.isNotEmpty()) {
+            item { LauncherButton("Reset to A–Z order", onResetAppOrder) }
         }
 
         item { SectionTitle("Hidden apps") }
