@@ -97,8 +97,10 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                             }
                         },
                         onStopMoving = { moving = null },
-                        onOpenInputs = { showInputs = true },
-                        onOpenTvSettings = { startSafely(context, Intent(Settings.ACTION_SETTINGS)) },
+                        onOpenInputs = { if (viewModel.isFireTv) viewModel.openFireTvInputs() else showInputs = true },
+                        onOpenTvSettings = { viewModel.openTvSettings() },
+                        stockHomeLabel = if (viewModel.isFireTv) "Amazon home" else "Stock home",
+                        onOpenStockHome = { viewModel.openStockHome() },
                         onOpenLauncherSettings = { screen = Screen.Settings },
                     )
                     Screen.Settings -> SettingsScreen(
@@ -110,6 +112,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onSetBackgroundColor = { viewModel.setBackgroundColor(it) },
                         onSelectWallpaper = { viewModel.setWallpaper(it) },
                         onSetUse24HourClock = { viewModel.setUse24HourClock(it) },
+                        onSetRedirectHome = { viewModel.setRedirectHome(it) },
                         onUnhide = { viewModel.setHidden(it, false) },
                         onResetAppOrder = { viewModel.resetAppOrder() },
                         onOpenAccessibilitySettings = {

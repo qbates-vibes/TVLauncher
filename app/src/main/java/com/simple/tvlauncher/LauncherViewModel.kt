@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.simple.tvlauncher.data.AppInfo
 import com.simple.tvlauncher.data.AppRepository
+import com.simple.tvlauncher.data.DeviceScreens
 import com.simple.tvlauncher.data.LauncherSettings
 import com.simple.tvlauncher.data.SettingsStore
 import com.simple.tvlauncher.data.TvInput
@@ -74,6 +75,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     val wallpaperFolder: String = Wallpaper.folderPath(application)
 
+    val isFireTv: Boolean = DeviceScreens.isFireTv(application)
+
     private val _inputs = MutableStateFlow<List<TvInput>>(emptyList())
     val inputs: StateFlow<List<TvInput>> = _inputs.asStateFlow()
 
@@ -97,6 +100,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (!TvInputs.open(app, input)) toast("Couldn't switch to ${input.label}")
     }
 
+    fun openTvSettings() {
+        if (!DeviceScreens.openTvSettings(app)) toast("Couldn't open TV settings")
+    }
+
+    fun openStockHome() {
+        if (!DeviceScreens.openStockHome(app)) toast("Couldn't open the stock home screen")
+    }
+
+    fun openFireTvInputs() {
+        if (!DeviceScreens.openFireTvInputs(app)) toast("Couldn't open the inputs")
+    }
+
     fun toggleFavorite(pkg: String) = viewModelScope.launch { store.toggleFavorite(pkg) }
     fun moveFavorite(pkg: String, delta: Int) = viewModelScope.launch { store.moveFavorite(pkg, delta) }
     fun moveApp(pkg: String, delta: Int) = viewModelScope.launch {
@@ -107,6 +122,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }
     fun setHidden(pkg: String, hidden: Boolean) = viewModelScope.launch { store.setHidden(pkg, hidden) }
     fun setUse24HourClock(enabled: Boolean) = viewModelScope.launch { store.setUse24HourClock(enabled) }
+    fun setRedirectHome(enabled: Boolean) = viewModelScope.launch { store.setRedirectHome(enabled) }
     fun setWallpaper(name: String) = viewModelScope.launch { store.setWallpaper(name) }
     fun setBackgroundColor(color: Long) = viewModelScope.launch { store.setBackgroundColor(color) }
 

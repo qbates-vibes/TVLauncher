@@ -12,6 +12,8 @@ A clean, fast, ad-free home screen for Android TV / Google TV.
 
 Built with Kotlin + Jetpack Compose for TV. Works on Android 9 and newer (every Google TV qualifies).
 
+**On a Fire TV?** Build it with steps 1 and 2 below, then follow [docs/fire-tv.md](docs/fire-tv.md) instead of steps 3 to 5.
+
 ---
 
 ## Using it with the remote
@@ -22,6 +24,8 @@ Built with Kotlin + Jetpack Compose for TV. Works on Android 9 and newer (every 
 | OK | Open the app |
 | **Hold OK** on an app | Options: Open, Add to/Remove from favorites, Move, Hide app, App info |
 | Back | Leaves the settings screen or move mode (it never leaves the home screen) |
+
+The **Stock home** button opens the TV's own home screen. The Home button helper stands aside until you open Simple Launcher again.
 
 **To reorder apps:** hold OK on an app and choose **Move**. The tile gets a yellow outline. Press Left/Right to move it one place, or Up/Down to move it a whole row (Up/Down only work in the All apps grid). Press OK or Back when you're done. Do this on a tile in the Favorites row to reorder favorites, or on a tile in All apps to reorder the grid. To go back to A–Z order, open **Launcher settings → App order**.
 
@@ -114,7 +118,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 `-r` means "replace if already installed".
 
-**Updating later:** after you or Claude change the code, run `./install.sh` from the project folder. It builds the app and installs it on the TV in one step. Your favorites and settings are kept.
+**Updating later:** after you or Claude change the code, run `./install.sh` from the project folder. It builds the app and installs it on the TV in one step. Your favorites and settings are kept. With more than one TV connected, name the one to use: `./install.sh 192.168.1.42:5555`.
 
 ## Step 4: Try it before making it the default
 
@@ -211,6 +215,8 @@ adb shell settings get secure enabled_accessibility_services
 
 **After every update of the app,** Android switches the helper off, even though it still shows in the list. Go back to **Launcher settings → Open accessibility settings** and turn **Simple Launcher Home button** off and on again. (`./install.sh` reminds you.)
 
+To stop it redirecting without touching accessibility settings, go to **Launcher settings → Redirect Home button**.
+
 Turn it off: switch it off in Accessibility settings, or put back exactly what the `get` command printed before. If that was `null`, run:
 `adb shell settings delete secure enabled_accessibility_services`
 
@@ -302,6 +308,7 @@ app/src/main/
     LauncherViewModel.kt       Combines installed apps + saved settings into screen state
     HomeButtonService.kt       Optional accessibility Home-button helper
     data/AppRepository.kt      Lists TV + regular apps, removes duplicates, refreshes on install/uninstall
+    data/DeviceScreens.kt      Opens the TV's own settings, home and inputs screens, per platform
     data/SettingsStore.kt      Favorites, hidden apps, colors, clock format (DataStore)
     data/TvInputs.kt           HDMI and other inputs via TvInputManager
     data/Wallpaper.kt          Lists and loads the wallpaper pictures you push with adb

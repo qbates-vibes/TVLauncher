@@ -64,6 +64,8 @@ fun HomeScreen(
     onStopMoving: () -> Unit,
     onOpenInputs: () -> Unit,
     onOpenTvSettings: () -> Unit,
+    stockHomeLabel: String,
+    onOpenStockHome: () -> Unit,
     onOpenLauncherSettings: () -> Unit,
 ) {
     val gridState = rememberLazyGridState()
@@ -100,6 +102,7 @@ fun HomeScreen(
         ) {
             LauncherButton("Inputs", onOpenInputs)
             LauncherButton("TV settings", onOpenTvSettings)
+            LauncherButton(stockHomeLabel, onOpenStockHome)
             LauncherButton("Launcher settings", onOpenLauncherSettings)
             Spacer(Modifier.weight(1f))
             Clock(state.settings.use24HourClock)

@@ -1,8 +1,13 @@
 #!/bin/sh
 # Builds Simple Launcher, installs it on the connected TV, and reminds you to turn the
 # Home button helper back on if it was on (Android switches it off whenever the app is updated).
+# With more than one TV connected, name the one to use: ./install.sh 192.168.1.42:5555
 set -e
 cd "$(dirname "$0")"
+
+if [ -n "$1" ]; then
+  export ANDROID_SERIAL="$1"
+fi
 
 SERVICE=com.simple.tvlauncher/com.simple.tvlauncher.HomeButtonService
 

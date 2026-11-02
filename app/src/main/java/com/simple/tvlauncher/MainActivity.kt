@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        HomeButtonService.visit = StockHomeVisit.None
         viewModel.onResume()
     }
 }

@@ -26,6 +26,8 @@ data class LauncherSettings(
     val use24HourClock: Boolean = false,
     /** Package names in the order you arranged the app grid. Apps not listed go at the end, A–Z. */
     val appOrder: List<String> = emptyList(),
+    /** Whether the Home button helper acts at all. Lets you turn it off from the remote. */
+    val redirectHome: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_BACKGROUND = 0xFF101418
@@ -48,6 +50,7 @@ class SettingsStore(context: Context) {
                 wallpaperName = p[WALLPAPER_NAME],
                 use24HourClock = p[USE_24H] ?: false,
                 appOrder = p.list(APP_ORDER),
+                redirectHome = p[REDIRECT_HOME] ?: true,
             )
         }
 
@@ -100,6 +103,8 @@ class SettingsStore(context: Context) {
 
     suspend fun setUse24HourClock(enabled: Boolean) = store.edit { it[USE_24H] = enabled }
 
+    suspend fun setRedirectHome(enabled: Boolean) = store.edit { it[REDIRECT_HOME] = enabled }
+
     private fun Preferences.list(key: Preferences.Key<String>): List<String> =
         this[key]?.split(',')?.filter { it.isNotBlank() } ?: emptyList()
 
@@ -116,6 +121,7 @@ class SettingsStore(context: Context) {
         val USE_WALLPAPER = booleanPreferencesKey("use_wallpaper")
         val WALLPAPER_NAME = stringPreferencesKey("wallpaper_name")
         val USE_24H = booleanPreferencesKey("use_24h_clock")
+        val REDIRECT_HOME = booleanPreferencesKey("redirect_home")
     }
 }
 

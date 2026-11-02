@@ -56,6 +56,7 @@ fun SettingsScreen(
     onSetBackgroundColor: (Long) -> Unit,
     onSelectWallpaper: (String) -> Unit,
     onSetUse24HourClock: (Boolean) -> Unit,
+    onSetRedirectHome: (Boolean) -> Unit,
     onUnhide: (String) -> Unit,
     onResetAppOrder: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
@@ -147,8 +148,17 @@ fun SettingsScreen(
         item { SectionTitle("Home button helper (optional)") }
         item {
             HelpText(
-                if (homeServiceEnabled) "On: the Home button opens this launcher."
-                else "Off. Turn this on only if the Home button keeps opening the stock Google TV home screen."
+                when {
+                    !homeServiceEnabled -> "Off. Turn this on only if the Home button keeps opening the stock home screen."
+                    settings.redirectHome -> "On: the Home button opens this launcher."
+                    else -> "Installed, but redirecting is off: the Home button opens the stock home screen."
+                }
+            )
+        }
+        item {
+            LauncherButton(
+                text = "Redirect Home button: " + if (settings.redirectHome) "On" else "Off",
+                onClick = { onSetRedirectHome(!settings.redirectHome) },
             )
         }
         item { LauncherButton("Open accessibility settings", onOpenAccessibilitySettings) }

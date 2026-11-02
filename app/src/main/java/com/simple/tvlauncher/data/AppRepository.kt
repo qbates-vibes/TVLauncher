@@ -62,6 +62,10 @@ class AppRepository(context: Context) {
 
     private fun loadApps(): List<AppInfo> {
         val byPackage = LinkedHashMap<String, AppInfo>()
+        // The stock home screen has its own button, and the Home button helper would bounce a tile for it.
+        val homeActivities = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+            .map { it.activityInfo.name }
+            .toSet()
         // TV apps first, so their TV activity wins when an app has both.
         for ((category, isTv) in listOf(
             Intent.CATEGORY_LEANBACK_LAUNCHER to true,
@@ -72,6 +76,7 @@ class AppRepository(context: Context) {
                 val activity = info.activityInfo
                 if (activity.packageName == context.packageName) continue
                 if (activity.packageName in byPackage) continue
+                if (activity.name in homeActivities) continue
                 toAppInfo(activity, isTv)?.let { byPackage[activity.packageName] = it }
             }
         }
