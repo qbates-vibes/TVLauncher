@@ -28,10 +28,26 @@ data class LauncherSettings(
     val appOrder: List<String> = emptyList(),
     /** Whether the Home button helper acts at all. Lets you turn it off from the remote. */
     val redirectHome: Boolean = true,
+    val homeStyle: HomeStyle = HomeStyle.HeroSelect,
+    /** Roles you picked yourself; other apps get [Role.default]. */
+    val roleOverrides: Map<String, Role> = emptyMap(),
+    val musicVolume: MusicVolume = MusicVolume.Quiet,
 ) {
     companion object {
         const val DEFAULT_BACKGROUND = 0xFF101418
     }
+}
+
+enum class HomeStyle { HeroSelect, Classic }
+
+/** Background music loudness, as a fraction of the TV's media volume. */
+enum class MusicVolume(val label: String, val level: Float) {
+    Off("Off", 0f),
+    Quiet("Quiet", 0.12f),
+    Medium("Medium", 0.25f),
+    Loud("Loud", 0.45f);
+
+    fun next(): MusicVolume = entries[(ordinal + 1) % entries.size]
 }
 
 private val Context.dataStore by preferencesDataStore(name = "launcher_settings")
@@ -51,6 +67,9 @@ class SettingsStore(context: Context) {
                 use24HourClock = p[USE_24H] ?: false,
                 appOrder = p.list(APP_ORDER),
                 redirectHome = p[REDIRECT_HOME] ?: true,
+                homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.HeroSelect,
+                roleOverrides = p.roleOverrides(),
+                musicVolume = MusicVolume.entries.firstOrNull { it.name == p[MUSIC_VOLUME] } ?: MusicVolume.Quiet,
             )
         }
 
@@ -82,6 +101,14 @@ class SettingsStore(context: Context) {
         p[APP_ORDER] = list.joinToString(",")
     }
 
+    suspend fun setMusicVolume(volume: MusicVolume) = store.edit { it[MUSIC_VOLUME] = volume.name }
+
+    suspend fun setHomeStyle(style: HomeStyle) = store.edit { it[HOME_STYLE] = style.name }
+
+    suspend fun setRole(pkg: String, role: Role) = store.edit { p ->
+        p[ROLES] = (p.roleOverrides() + (pkg to role)).entries.joinToString(",") { "${it.key}=${it.value.name}" }
+    }
+
     suspend fun resetAppOrder() = store.edit { it.remove(APP_ORDER) }
 
     suspend fun setHidden(pkg: String, hidden: Boolean) = store.edit { p ->
@@ -108,6 +135,13 @@ class SettingsStore(context: Context) {
     private fun Preferences.list(key: Preferences.Key<String>): List<String> =
         this[key]?.split(',')?.filter { it.isNotBlank() } ?: emptyList()
 
+    /** Stored as "package=Role,package=Role". */
+    private fun Preferences.roleOverrides(): Map<String, Role> =
+        list(ROLES).mapNotNull { entry ->
+            val (pkg, roleName) = entry.split('=').takeIf { it.size == 2 } ?: return@mapNotNull null
+            Role.entries.firstOrNull { it.name == roleName }?.let { pkg to it }
+        }.toMap()
+
     private fun MutablePreferences.setFavorites(list: List<String>) {
         this[FAVORITES] = list.joinToString(",")
     }
@@ -116,6 +150,9 @@ class SettingsStore(context: Context) {
         // Stored as comma-separated strings because string sets don't keep order.
         val FAVORITES = stringPreferencesKey("favorites")
         val APP_ORDER = stringPreferencesKey("app_order")
+        val HOME_STYLE = stringPreferencesKey("home_style")
+        val ROLES = stringPreferencesKey("role_overrides")
+        val MUSIC_VOLUME = stringPreferencesKey("music_volume")
         val HIDDEN = stringSetPreferencesKey("hidden")
         val BACKGROUND = longPreferencesKey("background_color")
         val USE_WALLPAPER = booleanPreferencesKey("use_wallpaper")

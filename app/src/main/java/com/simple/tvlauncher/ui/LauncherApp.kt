@@ -28,6 +28,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 import com.simple.tvlauncher.LauncherViewModel
 import com.simple.tvlauncher.data.AppInfo
+import com.simple.tvlauncher.data.HomeStyle
 import com.simple.tvlauncher.data.startSafely
 import kotlinx.coroutines.flow.StateFlow
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -40,6 +41,8 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val wallpaper by viewModel.wallpaper.collectAsStateWithLifecycle()
     val wallpaperOptions by viewModel.wallpaperOptions.collectAsStateWithLifecycle()
+    val logo by viewModel.logo.collectAsStateWithLifecycle()
+    val musicTracks by viewModel.musicTracks.collectAsStateWithLifecycle()
     val inputs by viewModel.inputs.collectAsStateWithLifecycle()
     val homeServiceEnabled by viewModel.homeServiceEnabled.collectAsStateWithLifecycle()
     val homePressCount by homePresses.collectAsStateWithLifecycle()
@@ -81,8 +84,19 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
                 }
 
-                when (screen) {
-                    Screen.Home -> HomeScreen(
+                when {
+                    screen == Screen.Home && state.settings.homeStyle == HomeStyle.HeroSelect -> HeroScreen(
+                        state = state,
+                        focusResetKey = focusReset,
+                        hasWallpaper = state.settings.useWallpaper && picture != null,
+                        logo = logo,
+                        onLaunch = { viewModel.launch(it) },
+                        onOptions = { optionsFor = it to Section.Apps },
+                        onOpenInputs = { showInputs = true },
+                        onOpenTvSettings = { startSafely(context, Intent(Settings.ACTION_SETTINGS)) },
+                        onOpenLauncherSettings = { screen = Screen.Settings },
+                    )
+                    screen == Screen.Home -> HomeScreen(
                         state = state,
                         focusResetKey = focusReset,
                         moving = moving,
@@ -103,7 +117,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onOpenStockHome = { viewModel.openStockHome() },
                         onOpenLauncherSettings = { screen = Screen.Settings },
                     )
-                    Screen.Settings -> SettingsScreen(
+                    else -> SettingsScreen(
                         state = state,
                         wallpaperOptions = wallpaperOptions,
                         wallpaperFolder = viewModel.wallpaperFolder,
@@ -115,6 +129,12 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onSetRedirectHome = { viewModel.setRedirectHome(it) },
                         onUnhide = { viewModel.setHidden(it, false) },
                         onResetAppOrder = { viewModel.resetAppOrder() },
+                        onSetHomeStyle = { viewModel.setHomeStyle(it) },
+                        logoFound = logo != null,
+                        logoFolder = viewModel.logoFolder,
+                        musicTrackCount = musicTracks.size,
+                        musicFolder = viewModel.musicFolder,
+                        onSetMusicVolume = { viewModel.setMusicVolume(it) },
                         onOpenAccessibilitySettings = {
                             startSafely(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },
@@ -123,13 +143,18 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
             }
 
             optionsFor?.let { (app, section) ->
+                val heroSelect = state.settings.homeStyle == HomeStyle.HeroSelect
+                val role = state.roleOf(app)
                 AppOptionsDialog(
                     app = app,
                     isFavorite = app.packageName in state.settings.favorites,
-                    moveLabel = when (section) {
-                        Section.Favorites -> "Move (reorder favorites)"
-                        Section.Apps -> "Move (reorder all apps)"
+                    // Hero select groups apps by role, so free reordering doesn't apply there.
+                    moveLabel = when {
+                        heroSelect -> null
+                        section == Section.Favorites -> "Move (reorder favorites)"
+                        else -> "Move (reorder all apps)"
                     },
+                    roleLabel = if (heroSelect) "Role: ${role.label}  →  ${role.next().label}" else null,
                     onDismiss = { optionsFor = null },
                     onOpen = {
                         optionsFor = null
@@ -142,6 +167,10 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     onStartMoving = {
                         optionsFor = null
                         moving = Moving(app.packageName, section)
+                    },
+                    onChangeRole = {
+                        optionsFor = null
+                        viewModel.setRole(app.packageName, role.next())
                     },
                     onHide = {
                         optionsFor = null

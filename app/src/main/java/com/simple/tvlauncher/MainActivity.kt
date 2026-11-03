@@ -30,4 +30,9 @@ class MainActivity : ComponentActivity() {
         HomeButtonService.visit = StockHomeVisit.None
         viewModel.onResume()
     }
+
+    override fun onPause() {
+        super.onPause()
+        viewModel.onPause()
+    }
 }

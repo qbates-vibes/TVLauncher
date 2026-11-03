@@ -34,6 +34,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.simple.tvlauncher.LauncherState
+import com.simple.tvlauncher.data.HomeStyle
+import com.simple.tvlauncher.data.MusicVolume
 import com.simple.tvlauncher.data.WallpaperOption
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
@@ -59,6 +61,12 @@ fun SettingsScreen(
     onSetRedirectHome: (Boolean) -> Unit,
     onUnhide: (String) -> Unit,
     onResetAppOrder: () -> Unit,
+    onSetHomeStyle: (HomeStyle) -> Unit,
+    logoFound: Boolean,
+    logoFolder: String,
+    musicTrackCount: Int,
+    musicFolder: String,
+    onSetMusicVolume: (MusicVolume) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
 ) {
     val settings = state.settings
@@ -78,6 +86,39 @@ fun SettingsScreen(
                 LauncherButton("← Back", onBack, Modifier.focusRequester(backButton))
                 Text("Launcher settings", style = MaterialTheme.typography.headlineMedium)
             }
+        }
+
+        item { SectionTitle("Home screen style") }
+        item {
+            val heroSelect = settings.homeStyle == HomeStyle.HeroSelect
+            LauncherButton(
+                text = "Style: " + if (heroSelect) "Hero select" else "Classic",
+                onClick = { onSetHomeStyle(if (heroSelect) HomeStyle.Classic else HomeStyle.HeroSelect) },
+            )
+        }
+
+        item {
+            HelpText(
+                if (logoFound) "Hero select logo: found."
+                else "Hero select logo: none. To show one, copy a PNG into:\n$logoFolder"
+            )
+        }
+
+        item { SectionTitle("Background music") }
+        item {
+            LauncherButton(
+                text = "Music: " + settings.musicVolume.label,
+                onClick = { onSetMusicVolume(settings.musicVolume.next()) },
+            )
+        }
+        item {
+            HelpText(
+                when (musicTrackCount) {
+                    0 -> "No music yet. Copy MP3, M4A or OGG files into:\n$musicFolder\n(see README)"
+                    1 -> "1 song. It loops while the home screen is open."
+                    else -> "$musicTrackCount songs. They play once each in A–Z order, then the last one loops."
+                }
+            )
         }
 
         item { SectionTitle("Background color") }

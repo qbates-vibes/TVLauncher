@@ -15,18 +15,23 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 fun AppOptionsDialog(
     app: AppInfo,
     isFavorite: Boolean,
-    moveLabel: String,
+    /** Null hides the Move option. */
+    moveLabel: String?,
+    /** Shown on the hero select screen, e.g. "Role: Tank". Null hides it. */
+    roleLabel: String?,
     onDismiss: () -> Unit,
     onOpen: () -> Unit,
     onToggleFavorite: () -> Unit,
     onStartMoving: () -> Unit,
+    onChangeRole: () -> Unit,
     onHide: () -> Unit,
     onAppInfo: () -> Unit,
 ) {
     LauncherDialog(title = app.label, onDismiss = onDismiss) { firstItem ->
         DialogButton("Open", onOpen, Modifier.focusRequester(firstItem))
         DialogButton(if (isFavorite) "Remove from favorites" else "Add to favorites", onToggleFavorite)
-        DialogButton(moveLabel, onStartMoving)
+        if (moveLabel != null) DialogButton(moveLabel, onStartMoving)
+        if (roleLabel != null) DialogButton(roleLabel, onChangeRole)
         DialogButton("Hide app", onHide)
         DialogButton("App info", onAppInfo)
     }
