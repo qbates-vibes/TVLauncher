@@ -52,19 +52,22 @@ class BackgroundMusic(context: Context) {
     /**
      * Starts the music at [volume] (0 to 1): from the first file if the TV has slept since the intro
      * last played, otherwise just the last file after a pause. Calling it again while playing (or
-     * waiting to) just changes the volume.
+     * waiting to) just changes the volume, and leaves the music alone if the volume is the same.
      */
     fun play(tracks: List<String>, volume: Float) {
         if (tracks.isEmpty() || volume <= 0f) {
             stop()
             return
         }
-        this.volume = volume
         if ((playing || pending != null) && tracks == this.tracks) {
-            fade?.cancel()
-            player?.setVolume(volume, volume)
+            if (volume != this.volume) {
+                this.volume = volume
+                fade?.cancel()
+                player?.setVolume(volume, volume)
+            }
             return
         }
+        this.volume = volume
         stop()
         this.tracks = tracks
         if (introDue) {

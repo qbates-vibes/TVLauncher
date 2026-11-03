@@ -22,10 +22,12 @@ import com.simple.tvlauncher.data.UserFiles
 import com.simple.tvlauncher.data.WallpaperOption
 import com.simple.tvlauncher.data.inSavedOrder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -103,12 +105,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val resumed = MutableStateFlow(false)
 
     init {
-        // Music plays only while the launcher is on screen.
+        // Music plays only while the launcher is on screen. Pressing Home inside the launcher (or the
+        // Fire TV's flash of Amazon's home screen) pauses and resumes it for a moment, so wait a little
+        // before stopping; coming back in time leaves the music, or the wait before it, running.
         viewModelScope.launch {
             combine(resumed, _musicTracks, store.settings.map { it.musicVolume }.distinctUntilChanged()) { onScreen, tracks, volume ->
                 Triple(onScreen, tracks, volume)
-            }.collect { (onScreen, tracks, volume) ->
-                if (onScreen) music.play(tracks, volume.level) else music.stop()
+            }.collectLatest { (onScreen, tracks, volume) ->
+                if (onScreen) {
+                    music.play(tracks, volume.level)
+                } else {
+                    delay(MUSIC_STOP_GRACE_MS)
+                    music.stop()
+                }
             }
         }
     }
@@ -207,4 +216,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setBackgroundColor(color: Long) = viewModelScope.launch { store.setBackgroundColor(color) }
 
     private fun toast(message: String) = Toast.makeText(app, message, Toast.LENGTH_SHORT).show()
+
+    private companion object {
+        /** How long the launcher can be off screen before the music stops. */
+        const val MUSIC_STOP_GRACE_MS = 1_500L
+    }
 }

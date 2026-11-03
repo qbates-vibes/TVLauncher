@@ -204,6 +204,7 @@ Press Home on the TV afterwards so the launcher picks up the new files.
 How the music behaves:
 - It fades in, and stops as soon as you open an app or the screensaver starts.
 - The intro plays only the first time the home screen shows after the TV turns on (pressing the remote's power button off and on again counts). Coming back to the home screen any other time skips the intro: after 30 seconds, the last file fades in and loops.
+- Moving around inside the launcher (Launcher settings, pressing Home) doesn't interrupt it, or restart the 30-second wait.
 - It won't start if something else is already playing (for example, Spotify in the background).
 - Change the loudness, or turn it off, under **Launcher settings → Background music** (Off, Quiet, Medium, Loud). Quiet is the default.
 
