@@ -18,7 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +39,7 @@ import androidx.tv.material3.Text
 import com.simple.tvlauncher.LauncherState
 import com.simple.tvlauncher.data.HomeStyle
 import com.simple.tvlauncher.data.MusicVolume
+import com.simple.tvlauncher.data.Snapshot
 import com.simple.tvlauncher.data.WallpaperOption
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
@@ -67,10 +71,14 @@ fun SettingsScreen(
     musicTrackCount: Int,
     musicFolder: String,
     onSetMusicVolume: (MusicVolume) -> Unit,
+    /** Newest first. */
+    snapshots: List<Snapshot>,
+    onRestore: (Snapshot) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
 ) {
     val settings = state.settings
     val backButton = remember { FocusRequester() }
+    var confirming by remember { mutableStateOf<Snapshot?>(null) }
     LaunchedEffect(Unit) {
         withFrameNanos { }
         backButton.requestFocusSafely()
@@ -186,6 +194,20 @@ fun SettingsScreen(
             LauncherButton("Unhide ${app.label}", { onUnhide(app.packageName) })
         }
 
+        item { SectionTitle("Saved setups") }
+        item {
+            HelpText(
+                if (snapshots.isEmpty()) "Nothing here yet. Each time you load a setup from your Mac (see README), the one it replaces is kept here."
+                else "Each time a setup loads, the one it replaced is kept here. The newest ${snapshots.size} are kept."
+            )
+        }
+        snapshots.firstOrNull()?.let { latest ->
+            item { LauncherButton("Undo last change", { confirming = latest }) }
+        }
+        items(snapshots, key = { "snapshot:${it.folder.name}" }) { snapshot ->
+            LauncherButton("Restore: ${snapshot.label}", { confirming = snapshot })
+        }
+
         item { SectionTitle("Home button helper (optional)") }
         item {
             HelpText(
@@ -203,6 +225,17 @@ fun SettingsScreen(
             )
         }
         item { LauncherButton("Open accessibility settings", onOpenAccessibilitySettings) }
+    }
+
+    confirming?.let { snapshot ->
+        RestoreDialog(
+            snapshot = snapshot,
+            onRestore = {
+                confirming = null
+                onRestore(snapshot)
+            },
+            onDismiss = { confirming = null },
+        )
     }
 }
 

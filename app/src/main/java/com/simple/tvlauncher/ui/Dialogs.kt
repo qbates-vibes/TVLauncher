@@ -8,6 +8,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.Text
 import com.simple.tvlauncher.data.AppInfo
+import com.simple.tvlauncher.data.Snapshot
 import com.simple.tvlauncher.data.TvInput
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
@@ -34,6 +35,19 @@ fun AppOptionsDialog(
         if (roleLabel != null) DialogButton(roleLabel, onChangeRole)
         DialogButton("Hide app", onHide)
         DialogButton("App info", onAppInfo)
+    }
+}
+
+@Composable
+fun RestoreDialog(snapshot: Snapshot, onRestore: () -> Unit, onDismiss: () -> Unit) {
+    LauncherDialog(title = "Restore this setup?", onDismiss = onDismiss) { firstItem ->
+        Text(
+            "Favorites, app order, hidden apps, roles and the look go back to how they were (${snapshot.label}). " +
+                "Your current setup is kept in the list first, so you can undo this too.",
+            color = Color.White.copy(alpha = 0.7f),
+        )
+        DialogButton("Cancel", onDismiss, Modifier.focusRequester(firstItem))
+        DialogButton("Restore", onRestore)
     }
 }
 

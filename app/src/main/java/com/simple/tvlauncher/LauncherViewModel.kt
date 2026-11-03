@@ -12,6 +12,8 @@ import com.simple.tvlauncher.data.HomeStyle
 import com.simple.tvlauncher.data.Role
 import com.simple.tvlauncher.data.LauncherSettings
 import com.simple.tvlauncher.data.SettingsStore
+import com.simple.tvlauncher.data.Snapshot
+import com.simple.tvlauncher.data.StateTransfer
 import com.simple.tvlauncher.data.TvInput
 import com.simple.tvlauncher.data.TvInputs
 import com.simple.tvlauncher.data.BackgroundMusic
@@ -119,17 +121,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _homeServiceEnabled = MutableStateFlow(false)
     val homeServiceEnabled: StateFlow<Boolean> = _homeServiceEnabled.asStateFlow()
 
+    private val transfer = StateTransfer(application, store, repository)
+
+    private val _snapshots = MutableStateFlow<List<Snapshot>>(emptyList())
+    val snapshots: StateFlow<List<Snapshot>> = _snapshots.asStateFlow()
+
+    init {
+        // Keeps files/state/current.json up to date, so tvstate.sh can copy the setup without touching the screen.
+        viewModelScope.launch {
+            store.settings.distinctUntilChanged().collect { withContext(Dispatchers.IO) { transfer.writeCurrent(it) } }
+        }
+    }
+
     /** Called every time the home screen comes back into view. */
     fun onResume() {
         resumed.value = true
         _homeServiceEnabled.value = HomeButtonService.isEnabled(app)
-        viewModelScope.launch(Dispatchers.IO) {
-            wallpaperFiles.value = UserFiles.list(app, null, UserFiles.IMAGE_EXTENSIONS).map { it.path to it.lastModified() }
-            logoFile.value = UserFiles.list(app, UserFiles.LOGO_FOLDER, UserFiles.IMAGE_EXTENSIONS).firstOrNull()
-                ?.let { it.path to it.lastModified() }
-            _musicTracks.value = UserFiles.list(app, UserFiles.MUSIC_FOLDER, UserFiles.AUDIO_EXTENSIONS).map { it.path }
-            _inputs.value = TvInputs.list(app)
+        viewModelScope.launch {
+            // Setups pushed from the Mac load first, so the scan below sees any pictures and music they brought.
+            withContext(Dispatchers.IO) { transfer.importInbox() }.forEach(::toast)
+            refreshFiles()
         }
+    }
+
+    /** Puts an earlier setup back, from Launcher settings. */
+    fun restore(snapshot: Snapshot) = viewModelScope.launch {
+        toast(withContext(Dispatchers.IO) { transfer.restore(snapshot) })
+        refreshFiles()
+    }
+
+    private suspend fun refreshFiles() = withContext(Dispatchers.IO) {
+        wallpaperFiles.value = UserFiles.list(app, null, UserFiles.IMAGE_EXTENSIONS).map { it.path to it.lastModified() }
+        logoFile.value = UserFiles.list(app, UserFiles.LOGO_FOLDER, UserFiles.IMAGE_EXTENSIONS).firstOrNull()
+            ?.let { it.path to it.lastModified() }
+        _musicTracks.value = UserFiles.list(app, UserFiles.MUSIC_FOLDER, UserFiles.AUDIO_EXTENSIONS).map { it.path }
+        _inputs.value = TvInputs.list(app)
+        _snapshots.value = transfer.snapshots()
     }
 
     fun onPause() {
@@ -161,7 +188,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleFavorite(pkg: String) = viewModelScope.launch { store.toggleFavorite(pkg) }
-    fun moveFavorite(pkg: String, delta: Int) = viewModelScope.launch { store.moveFavorite(pkg, delta) }
+    fun moveFavorite(pkg: String, delta: Int) = viewModelScope.launch {
+        store.moveFavorite(pkg, delta, state.value.favorites.map { it.packageName }.toSet())
+    }
     fun moveApp(pkg: String, delta: Int) = viewModelScope.launch {
         val visibleAToZ = state.value.apps.sortedBy { it.label.lowercase() }.map { it.packageName }
         store.moveApp(pkg, delta, visibleAToZ)

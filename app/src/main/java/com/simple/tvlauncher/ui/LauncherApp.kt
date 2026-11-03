@@ -45,6 +45,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
     val musicTracks by viewModel.musicTracks.collectAsStateWithLifecycle()
     val inputs by viewModel.inputs.collectAsStateWithLifecycle()
     val homeServiceEnabled by viewModel.homeServiceEnabled.collectAsStateWithLifecycle()
+    val snapshots by viewModel.snapshots.collectAsStateWithLifecycle()
     val homePressCount by homePresses.collectAsStateWithLifecycle()
 
     var screen by remember { mutableStateOf(Screen.Home) }
@@ -92,8 +93,8 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         logo = logo,
                         onLaunch = { viewModel.launch(it) },
                         onOptions = { optionsFor = it to Section.Apps },
-                        onOpenInputs = { showInputs = true },
-                        onOpenTvSettings = { startSafely(context, Intent(Settings.ACTION_SETTINGS)) },
+                        onOpenInputs = { if (viewModel.isFireTv) viewModel.openFireTvInputs() else showInputs = true },
+                        onOpenTvSettings = { viewModel.openTvSettings() },
                         onOpenLauncherSettings = { screen = Screen.Settings },
                     )
                     screen == Screen.Home -> HomeScreen(
@@ -135,6 +136,8 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         musicTrackCount = musicTracks.size,
                         musicFolder = viewModel.musicFolder,
                         onSetMusicVolume = { viewModel.setMusicVolume(it) },
+                        snapshots = snapshots,
+                        onRestore = { viewModel.restore(it) },
                         onOpenAccessibilitySettings = {
                             startSafely(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },

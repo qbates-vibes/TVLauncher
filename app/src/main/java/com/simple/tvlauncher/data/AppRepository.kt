@@ -62,6 +62,13 @@ class AppRepository(context: Context) {
         awaitClose { context.unregisterReceiver(receiver) }
     }
 
+    /** Package names of every app with a home-screen entry, without loading any pictures. */
+    fun installedPackages(): Set<String> =
+        listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)
+            .flatMap { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(it), 0) }
+            .map { it.activityInfo.packageName }
+            .toSet()
+
     private fun loadApps(): List<AppInfo> {
         val byPackage = LinkedHashMap<String, AppInfo>()
         // The stock home screen has its own button, and the Home button helper would bounce a tile for it.

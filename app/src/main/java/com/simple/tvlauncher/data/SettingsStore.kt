@@ -28,7 +28,7 @@ data class LauncherSettings(
     val appOrder: List<String> = emptyList(),
     /** Whether the Home button helper acts at all. Lets you turn it off from the remote. */
     val redirectHome: Boolean = true,
-    val homeStyle: HomeStyle = HomeStyle.HeroSelect,
+    val homeStyle: HomeStyle = HomeStyle.Classic,
     /** Roles you picked yourself; other apps get [Role.default]. */
     val roleOverrides: Map<String, Role> = emptyMap(),
     val musicVolume: MusicVolume = MusicVolume.Quiet,
@@ -67,7 +67,7 @@ class SettingsStore(context: Context) {
                 use24HourClock = p[USE_24H] ?: false,
                 appOrder = p.list(APP_ORDER),
                 redirectHome = p[REDIRECT_HOME] ?: true,
-                homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.HeroSelect,
+                homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.Classic,
                 roleOverrides = p.roleOverrides(),
                 musicVolume = MusicVolume.entries.firstOrNull { it.name == p[MUSIC_VOLUME] } ?: MusicVolume.Quiet,
             )
@@ -78,14 +78,9 @@ class SettingsStore(context: Context) {
         p.setFavorites(if (pkg in current) current - pkg else current + pkg)
     }
 
-    /** Moves a favorite left (delta < 0) or right (delta > 0). */
-    suspend fun moveFavorite(pkg: String, delta: Int) = store.edit { p ->
-        val list = p.list(FAVORITES).toMutableList()
-        val from = list.indexOf(pkg)
-        if (from < 0) return@edit
-        val to = (from + delta).coerceIn(0, list.lastIndex)
-        list.add(to, list.removeAt(from))
-        p.setFavorites(list)
+    /** Moves a favorite left (delta < 0) or right (delta > 0) among the [shown] favorites. */
+    suspend fun moveFavorite(pkg: String, delta: Int, shown: Set<String>) = store.edit { p ->
+        p.setFavorites(p.list(FAVORITES).moveAmong(shown, pkg, delta))
     }
 
     /**
@@ -93,12 +88,22 @@ class SettingsStore(context: Context) {
      * [visibleApps] is every visible app in A–Z order, used to place apps you haven't arranged yet.
      */
     suspend fun moveApp(pkg: String, delta: Int, visibleApps: List<String>) = store.edit { p ->
-        val list = visibleApps.inSavedOrder(p.list(APP_ORDER)) { it }.toMutableList()
-        val from = list.indexOf(pkg)
-        if (from < 0) return@edit
-        val to = (from + delta).coerceIn(0, list.lastIndex)
-        list.add(to, list.removeAt(from))
-        p[APP_ORDER] = list.joinToString(",")
+        val saved = p.list(APP_ORDER)
+        p[APP_ORDER] = (saved + (visibleApps - saved.toSet())).moveAmong(visibleApps.toSet(), pkg, delta).joinToString(",")
+    }
+
+    /** Replaces everything a saved setup covers in one step. Redirect Home belongs to this TV, so it stays. */
+    suspend fun replaceAll(settings: LauncherSettings) = store.edit { p ->
+        p.setFavorites(settings.favorites)
+        if (settings.appOrder.isEmpty()) p.remove(APP_ORDER) else p[APP_ORDER] = settings.appOrder.joinToString(",")
+        p[HIDDEN] = settings.hidden
+        p[BACKGROUND] = settings.backgroundColor
+        p[USE_WALLPAPER] = settings.useWallpaper
+        settings.wallpaperName?.let { p[WALLPAPER_NAME] = it } ?: p.remove(WALLPAPER_NAME)
+        p[USE_24H] = settings.use24HourClock
+        p[HOME_STYLE] = settings.homeStyle.name
+        p.setRoles(settings.roleOverrides)
+        p[MUSIC_VOLUME] = settings.musicVolume.name
     }
 
     suspend fun setMusicVolume(volume: MusicVolume) = store.edit { it[MUSIC_VOLUME] = volume.name }
@@ -106,7 +111,7 @@ class SettingsStore(context: Context) {
     suspend fun setHomeStyle(style: HomeStyle) = store.edit { it[HOME_STYLE] = style.name }
 
     suspend fun setRole(pkg: String, role: Role) = store.edit { p ->
-        p[ROLES] = (p.roleOverrides() + (pkg to role)).entries.joinToString(",") { "${it.key}=${it.value.name}" }
+        p.setRoles(p.roleOverrides() + (pkg to role))
     }
 
     suspend fun resetAppOrder() = store.edit { it.remove(APP_ORDER) }
@@ -144,6 +149,24 @@ class SettingsStore(context: Context) {
 
     private fun MutablePreferences.setFavorites(list: List<String>) {
         this[FAVORITES] = list.joinToString(",")
+    }
+
+    private fun MutablePreferences.setRoles(roles: Map<String, Role>) {
+        this[ROLES] = roles.entries.joinToString(",") { "${it.key}=${it.value.name}" }
+    }
+
+    /**
+     * Moves [pkg] by [delta] places counting only the [shown] entries. The others (apps that are
+     * hidden or not installed on this TV) keep their slots, so they're back in place if the app returns.
+     */
+    private fun List<String>.moveAmong(shown: Set<String>, pkg: String, delta: Int): List<String> {
+        val visible = filter { it in shown }.toMutableList()
+        val from = visible.indexOf(pkg)
+        if (from < 0) return this
+        val to = (from + delta).coerceIn(0, visible.lastIndex)
+        visible.add(to, visible.removeAt(from))
+        val reordered = visible.iterator()
+        return map { if (it in shown) reordered.next() else it }
     }
 
     private companion object {
