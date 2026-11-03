@@ -98,9 +98,12 @@ private val PortraitHeight = 60.dp
 private val PortraitGap = 10.dp
 private val PortraitSkew = 12.dp
 
+/** Space between a section's two rows: the same clearance side-by-side tiles get between their slanted edges. */
+private val PortraitRowGap = PortraitGap + PortraitSkew
+
 /** How far an odd section's bottom row moves right: half a tile step, less the tiles' lean over one row. */
 private val BottomRowIndent =
-    (PortraitWidth + PortraitGap) / 2 - PortraitSkew * ((PortraitHeight + PortraitGap) / PortraitHeight)
+    (PortraitWidth + PortraitGap) / 2 - PortraitSkew * ((PortraitHeight + PortraitRowGap) / PortraitHeight)
 
 /** Bold italic condensed system font: the closest built-in match to a hero-select title. */
 private val HeroFont = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC))
@@ -349,7 +352,7 @@ private fun RoleGroup(
             RoleIcon(role, Modifier.size(18.dp), Color.White)
             Text(role.label.uppercase(), style = heroText(16))
         }
-        Column(verticalArrangement = Arrangement.spacedBy(PortraitGap)) {
+        Column(verticalArrangement = Arrangement.spacedBy(PortraitRowGap)) {
             apps.indices.groupBy { it % 2 }.forEach { (row, indices) ->
                 Row(
                     modifier = if (row == 1 && apps.size % 2 == 1) Modifier.padding(start = BottomRowIndent) else Modifier,
