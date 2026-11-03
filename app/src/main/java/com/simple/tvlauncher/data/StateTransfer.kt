@@ -154,17 +154,18 @@ class StateTransfer(context: Context, private val store: SettingsStore, private 
         return listOfNotNull(time, what).joinToString(", ")
     }
 
-    private companion object {
-        const val STATE = "state"
-        const val INBOX = "inbox"
-        const val SNAPSHOTS = "snapshots"
-        const val REJECTED = "rejected"
-        const val MEDIA = "media"
-        const val STATE_FILE = "state.json"
-        const val CURRENT = "current.json"
-        const val LAST_IMPORT = "last-import.json"
+    companion object {
         const val KEEP_SNAPSHOTS = 10
-        const val MAX_STATE_BYTES = 1_000_000
-        fun stamp() = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US)
+
+        private const val STATE = "state"
+        private const val INBOX = "inbox"
+        private const val SNAPSHOTS = "snapshots"
+        private const val REJECTED = "rejected"
+        private const val MEDIA = "media"
+        private const val STATE_FILE = "state.json"
+        private const val CURRENT = "current.json"
+        private const val LAST_IMPORT = "last-import.json"
+        private const val MAX_STATE_BYTES = 1_000_000
+        private fun stamp() = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US)
     }
 }

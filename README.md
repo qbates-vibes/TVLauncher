@@ -8,6 +8,8 @@ A clean, fast, ad-free home screen for Android TV / Google TV.
 - Shortcuts to TV Settings and to TV inputs (HDMI)
 - Clock in the top-right corner
 - Dark theme with a solid color or one of your own wallpaper pictures
+- Two home screen styles: Classic (the grid) and Hero select (game-style, with apps grouped by role). Switch under **Launcher settings → Home screen style**
+- Back up your setup, copy it to another TV, or share it ([see below](#back-up-copy-or-share-your-setup))
 - **No internet permission.** No recommendations, ads or tracking. Everything is stored on the TV.
 
 Built with Kotlin + Jetpack Compose for TV. Works on Android 9 and newer (every Google TV qualifies).
@@ -213,6 +215,26 @@ adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/music/menu-theme.m
 
 ---
 
+## Back up, copy or share your setup
+
+`tvstate.sh` saves a TV's whole setup to one file on your Mac, and loads a saved setup onto any TV, including a Fire TV. A setup holds your favorites, app order, hidden apps, Hero roles, home screen style, colors, clock and music volume, plus your wallpaper, logo and music files. It doesn't change anything about the Home button.
+
+```sh
+./tvstate.sh save living-room                 # saves profiles/living-room.zip
+./tvstate.sh load living-room                 # replaces the TV's setup with it
+./tvstate.sh list                             # shows your saved setups
+```
+
+- **More than one TV connected?** Add the TV's address at the end, for example `./tvstate.sh load living-room 192.168.1.42:5555`.
+- **Sharing:** send someone the `.zip` from the `profiles` folder. They put it in their own `profiles` folder (or give its full path) and run `./tvstate.sh load`. Your wallpaper pictures are included, so add `--no-media` when saving to leave pictures and music out. `--no-media` on `load` keeps the TV's own pictures and music.
+- **Apps that aren't installed** on the other TV stay in the setup and appear in their place if you install them later. Apps that have a different name on Fire TV and Google TV, such as YouTube, are matched up.
+- **When it loads:** right away if Simple Launcher is on screen. Otherwise the next time it opens, so it never interrupts someone watching.
+- **Changed your mind?** On the TV, open **Launcher settings → Saved setups** and choose **Undo last change**. The TV keeps the last 10 setups it replaced there. They survive app updates but not uninstalling the app, so keep the `.zip` on your Mac as your real backup.
+
+The `profiles` folder is never uploaded to GitHub.
+
+---
+
 ## The Home button problem (Google TV)
 
 On many Google TV devices, the Home button always opens the stock Google TV home screen, even after step 5. You have two options. **Do these only after Simple Launcher is installed and working (steps 3 to 5).**
@@ -309,6 +331,7 @@ adb shell pm enable com.google.android.tungsten.setupwraith
 adb shell settings delete secure enabled_accessibility_services
 
 # 3. Remove Simple Launcher. The TV goes back to Google TV as the home screen.
+#    This deletes your setup from the TV, so save it first if you might want it back: ./tvstate.sh save backup
 adb uninstall com.simple.tvlauncher
 ```
 
@@ -339,10 +362,17 @@ app/src/main/
     HomeButtonService.kt       Optional accessibility Home-button helper
     data/AppRepository.kt      Lists TV + regular apps, removes duplicates, refreshes on install/uninstall
     data/DeviceScreens.kt      Opens the TV's own settings, home and inputs screens, per platform
-    data/SettingsStore.kt      Favorites, hidden apps, colors, clock format (DataStore)
+    data/SettingsStore.kt      Favorites, hidden apps, roles, colors, clock format (DataStore)
+    data/StateFile.kt          A setup as JSON, for backing up and copying between TVs
+    data/StateTransfer.kt      Writes the current setup, loads pushed ones, keeps snapshots for undo
+    data/AppAliases.kt         Apps with different package names on Fire TV and Google TV
+    data/Role.kt               Hero select roles and their defaults
+    data/BackgroundMusic.kt    Plays the music you push with adb
     data/TvInputs.kt           HDMI and other inputs via TvInputManager
-    data/Wallpaper.kt          Lists and loads the wallpaper pictures you push with adb
-    ui/                        Compose for TV screens: home grid, favorites row, dialogs, settings, clock
+    data/UserFiles.kt          Lists and loads the wallpaper, logo and music you push with adb
+    ui/                        Compose for TV screens: Classic and Hero select home, dialogs, settings, clock
+install.sh                     Builds and installs on the connected TV
+tvstate.sh                     Saves and loads setups (see "Back up, copy or share your setup")
 ```
 
 The project also opens directly in Android Studio (File → Open → this folder).

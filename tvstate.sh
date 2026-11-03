@@ -45,7 +45,7 @@ check_tv() {
 pull_files() {
   mkdir -p "$WORK/setup/media/$2"
   adb shell "find '$DIR/$1' -maxdepth 1 -type f 2>/dev/null" </dev/null | tr -d '\r' | while IFS= read -r file; do
-    adb pull "$file" "$WORK/setup/media/$2/" </dev/null >/dev/null
+    adb pull "$file" "$WORK/setup/media/$2/" </dev/null >/dev/null 2>&1
   done
 }
 
@@ -75,7 +75,7 @@ case "$COMMAND" in
     rm -f "$PROFILES/$NAME.zip"
     (cd "$WORK/setup" && zip -qr - .) > "$PROFILES/$NAME.zip"
     if [ -n "$MEDIA" ]; then
-      echo "Saved $PROFILES/$NAME.zip ($(count wallpaper) wallpapers, $(count logo) logo, $(count music) songs)."
+      echo "Saved $PROFILES/$NAME.zip (wallpapers: $(count wallpaper), logo: $(count logo), songs: $(count music))."
     else
       echo "Saved $PROFILES/$NAME.zip (settings only, no pictures or music)."
     fi
@@ -96,14 +96,25 @@ case "$COMMAND" in
     check_tv
 
     # Copy under a temporary name, then rename, so the TV never reads a half-copied setup.
+    # adb push can't create folders in the app's storage, so make them first and push file by file.
     INBOX=$DIR/state/inbox
-    adb shell "mkdir -p '$INBOX' && rm -rf '$INBOX/$LABEL.partial' '$INBOX/$LABEL' && rm -f '$DIR/state/last-import.json'"
-    adb push "$WORK/setup" "$INBOX/$LABEL.partial" >/dev/null
-    adb shell "mv '$INBOX/$LABEL.partial' '$INBOX/$LABEL'"
+    PARTIAL=$INBOX/$LABEL.partial
+    adb shell "rm -rf '$PARTIAL' '$INBOX/$LABEL' && rm -f '$DIR/state/last-import.json' && mkdir -p '$PARTIAL'"
+    adb push "$WORK/setup/state.json" "$PARTIAL/" >/dev/null 2>&1 || { echo "Couldn't copy the setup to the TV."; exit 1; }
+    if [ -d "$WORK/setup/media" ]; then
+      adb shell "mkdir -p '$PARTIAL/media/wallpaper' '$PARTIAL/media/logo' '$PARTIAL/media/music'"
+      for kind in wallpaper logo music; do
+        for file in "$WORK/setup/media/$kind"/*; do
+          [ -f "$file" ] || continue
+          adb push "$file" "$PARTIAL/media/$kind/" >/dev/null 2>&1 || { echo "Couldn't copy $file to the TV."; exit 1; }
+        done
+      done
+    fi
+    adb shell "mv '$PARTIAL' '$INBOX/$LABEL'"
 
     # Only bring the launcher forward if it's already on screen, so nobody watching gets interrupted.
     if adb shell dumpsys activity activities | grep -m1 'ResumedActivity' | grep -q "$PKG/"; then
-      adb shell am start -n "$PKG/.MainActivity" >/dev/null
+      adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1
       i=0
       while [ $i -lt 20 ]; do
         if RESULT=$(adb shell "cat '$DIR/state/last-import.json'" 2>/dev/null) && [ -n "$RESULT" ]; then

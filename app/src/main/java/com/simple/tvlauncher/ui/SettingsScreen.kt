@@ -40,6 +40,7 @@ import com.simple.tvlauncher.LauncherState
 import com.simple.tvlauncher.data.HomeStyle
 import com.simple.tvlauncher.data.MusicVolume
 import com.simple.tvlauncher.data.Snapshot
+import com.simple.tvlauncher.data.StateTransfer
 import com.simple.tvlauncher.data.WallpaperOption
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
@@ -198,7 +199,7 @@ fun SettingsScreen(
         item {
             HelpText(
                 if (snapshots.isEmpty()) "Nothing here yet. Each time you load a setup from your Mac (see README), the one it replaces is kept here."
-                else "Each time a setup loads, the one it replaced is kept here. The newest ${snapshots.size} are kept."
+                else "Each time a setup loads or is restored, the one it replaced is kept here (the newest ${StateTransfer.KEEP_SNAPSHOTS})."
             )
         }
         snapshots.firstOrNull()?.let { latest ->

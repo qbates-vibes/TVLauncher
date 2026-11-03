@@ -44,6 +44,10 @@ Only Amazon's own apps can switch inputs, so Simple Launcher can't do it directl
 
 **Getting back from Amazon's home screen:** go to **Settings → Applications**, find Simple Launcher and open it. If you pressed **Inputs** but didn't choose anything, Home stays on Amazon, and this gets you back too. A reboot also returns you to Simple Launcher.
 
+## Copying a setup
+
+`./tvstate.sh` works the same as on Google TV (see [Back up, copy or share your setup](../README.md#back-up-copy-or-share-your-setup)). A setup saved on a Google TV keeps its places on Fire TV for apps the launcher knows by both names, such as YouTube. Loading a setup never changes Redirect Home or the Home button helper. If `tvstate.sh` can't reach the TV after a reboot, turn **ADB debugging** off and on again.
+
 ## Undo it
 
 **From the remote:**
