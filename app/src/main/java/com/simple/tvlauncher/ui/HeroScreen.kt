@@ -203,15 +203,20 @@ fun HeroScreen(
         HeroBackdrop(Modifier.fillMaxSize(), alpha = if (hasWallpaper) 0.55f else 1f)
 
         Column(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 20.dp)) {
-                TitleBlock(logo, Modifier.align(Alignment.CenterStart))
-                MatchClock(state.settings.use24HourClock, Modifier.align(Alignment.TopCenter))
-                Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TitleBlock(logo)
+                Spacer(Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SkewedButton("INPUTS", onOpenInputs)
-                    SkewedButton("SETTINGS", onOpenTvSettings)
                     SkewedButton(stockHomeLabel.uppercase(), onOpenStockHome)
-                    SkewedButton("LAUNCHER", onOpenLauncherSettings)
+                    SkewedButton("TV SETTINGS", onOpenTvSettings)
+                    SkewedButton("LAUNCHER SETTINGS", onOpenLauncherSettings)
                 }
+                Spacer(Modifier.width(24.dp))
+                MatchClock(state.settings.use24HourClock)
             }
 
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 48.dp)) {
