@@ -98,8 +98,8 @@ private val PortraitHeight = 60.dp
 private val PortraitGap = 10.dp
 private val PortraitSkew = 12.dp
 
-/** Space between a section's two rows: the same clearance side-by-side tiles get between their slanted edges. */
-private val PortraitRowGap = PortraitGap + PortraitSkew
+/** Space between a section's two rows: halfway between the plain gap and the clearance slanted side-by-side tiles get. */
+private val PortraitRowGap = PortraitGap + PortraitSkew / 2
 
 /** How far an odd section's bottom row moves right: half a tile step, less the tiles' lean over one row. */
 private val BottomRowIndent =
