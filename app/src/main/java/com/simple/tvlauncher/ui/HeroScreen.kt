@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
@@ -92,6 +93,14 @@ private val Accent = Color(0xFFF99E1A)
 private val PortraitColor = Color(0xFF1C3354)
 private val PortraitFocusedColor = Color(0xFF2B4D7C)
 private val FocusGlow = Glow(elevationColor = Accent.copy(alpha = 0.8f), elevation = 12.dp)
+private val PortraitWidth = 76.dp
+private val PortraitHeight = 60.dp
+private val PortraitGap = 10.dp
+private val PortraitSkew = 12.dp
+
+/** How far an odd section's bottom row moves right: half a tile step, less the tiles' lean over one row. */
+private val BottomRowIndent =
+    (PortraitWidth + PortraitGap) / 2 - PortraitSkew * ((PortraitHeight + PortraitGap) / PortraitHeight)
 
 /** Bold italic condensed system font: the closest built-in match to a hero-select title. */
 private val HeroFont = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC))
@@ -128,22 +137,17 @@ fun HeroScreen(
 ) {
     val rosterState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    // Ends of the roster, top and bottom row, for wrapping around between Tank and Support.
-    val firstTop = remember { FocusRequester() }
-    val firstBottom = remember { FocusRequester() }
-    val lastTop = remember { FocusRequester() }
-    val lastBottom = remember { FocusRequester() }
-    val firstPortrait = firstTop
     var focusedPackage by remember { mutableStateOf<String?>(null) }
     var hasFocus by remember { mutableStateOf(false) }
     val groups = state.roles.filterValues { it.isNotEmpty() }
+    val groupSizes = groups.values.map { it.size }
+    val requesters = remember(groupSizes) { groupSizes.map { size -> List(size) { FocusRequester() } } }
+    val firstPortrait = requesters.firstOrNull()?.firstOrNull()
     val firstApp = groups.values.firstOrNull()?.firstOrNull()
     val hero = state.apps.firstOrNull { it.packageName == focusedPackage } ?: firstApp
-    val firstGroup = groups.values.firstOrNull().orEmpty()
-    val lastGroup = groups.values.lastOrNull().orEmpty()
 
     /** Scrolls the roster to [groupIndex] and focuses [target], which may have been off screen. */
-    fun wrapTo(groupIndex: Int, target: FocusRequester) {
+    fun jumpTo(groupIndex: Int, target: FocusRequester) {
         scope.launch {
             rosterState.scrollToItem(groupIndex)
             withFrameNanos { }
@@ -151,22 +155,23 @@ fun HeroScreen(
         }
     }
 
-    /** Extra modifiers for portraits at either end of the roster, so Left/Right wrap around. */
-    fun wrapModifier(groupIndex: Int, index: Int): Modifier {
-        val column = index / 2
+    /**
+     * Extra modifiers for portraits at the ends of a section's rows. Left/Right wrap around between
+     * Tank and Support, and a bottom row's end reaches a one-app section, which has no bottom row to line up with.
+     */
+    fun edgeModifier(groupIndex: Int, index: Int): Modifier {
         val isTop = index % 2 == 0
+        val before = (groupIndex - 1).mod(groups.size)
+        val after = (groupIndex + 1) % groups.size
         var modifier: Modifier = Modifier
-        if (groupIndex == 0 && column == 0) {
-            val target = if (!isTop && lastGroup.size % 2 == 0) lastBottom else lastTop
-            modifier = modifier
-                .focusRequester(if (isTop) firstTop else firstBottom)
-                .onArrowKey(Key.DirectionLeft) { wrapTo(groups.size - 1, target) }
+        if (index < 2 && (groupIndex == 0 || (!isTop && groupSizes[before] == 1))) {
+            val row = if (!isTop && groupSizes[before] >= 2) 1 else 0
+            val lastInRow = (groupSizes[before] - 1).let { if (it % 2 == row) it else it - 1 }
+            modifier = modifier.onArrowKey(Key.DirectionLeft) { jumpTo(before, requesters[before][lastInRow]) }
         }
-        if (groupIndex == groups.size - 1 && column == (lastGroup.size - 1) / 2) {
-            val target = if (!isTop && firstGroup.size >= 2) firstBottom else firstTop
-            modifier = modifier
-                .focusRequester(if (isTop) lastTop else lastBottom)
-                .onArrowKey(Key.DirectionRight) { wrapTo(0, target) }
+        if (index >= groupSizes[groupIndex] - 2 && (groupIndex == groups.size - 1 || (!isTop && groupSizes[after] == 1))) {
+            val firstInRow = if (!isTop && groupSizes[after] >= 2) 1 else 0
+            modifier = modifier.onArrowKey(Key.DirectionRight) { jumpTo(after, requesters[after][firstInRow]) }
         }
         return modifier
     }
@@ -176,7 +181,7 @@ fun HeroScreen(
         if (!state.loaded) return@LaunchedEffect
         rosterState.scrollToItem(0)
         withFrameNanos { }
-        firstPortrait.requestFocusSafely()
+        firstPortrait?.requestFocusSafely()
     }
     LaunchedEffect(state, hasFocus) {
         if (!state.loaded || hasFocus) return@LaunchedEffect
@@ -184,7 +189,7 @@ fun HeroScreen(
         if (!hasFocus) {
             rosterState.scrollToItem(0)
             withFrameNanos { }
-            firstPortrait.requestFocusSafely()
+            firstPortrait?.requestFocusSafely()
         }
     }
 
@@ -228,7 +233,8 @@ fun HeroScreen(
                         RoleGroup(
                             role = role,
                             apps = apps,
-                            portraitModifier = { index -> wrapModifier(groupIndex, index) },
+                            requesters = requesters[groupIndex],
+                            portraitModifier = { index -> edgeModifier(groupIndex, index) },
                             onFocused = { focusedPackage = it.packageName },
                             onLaunch = onLaunch,
                             onOptions = onOptions,
@@ -320,11 +326,15 @@ private fun ControlHint(key: String, action: String) {
     }
 }
 
-/** One role's section of the roster: a header with the role icon above two rows of portraits. */
+/**
+ * One role's section of the roster: a header with the role icon above two rows of portraits.
+ * Apps alternate top, bottom, so an odd section has its extra app on top and its bottom row centered.
+ */
 @Composable
 private fun RoleGroup(
     role: Role,
     apps: List<AppInfo>,
+    requesters: List<FocusRequester>,
     portraitModifier: (index: Int) -> Modifier,
     onFocused: (AppInfo) -> Unit,
     onLaunch: (AppInfo) -> Unit,
@@ -335,17 +345,30 @@ private fun RoleGroup(
             RoleIcon(role, Modifier.size(18.dp), Color.White)
             Text(role.label.uppercase(), style = heroText(16))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Fill column by column, top then bottom, like a hero roster.
-            apps.chunked(2).forEachIndexed { columnIndex, column ->
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    column.forEachIndexed { row, app ->
+        Column(verticalArrangement = Arrangement.spacedBy(PortraitGap)) {
+            apps.indices.groupBy { it % 2 }.forEach { (row, indices) ->
+                Row(
+                    modifier = if (row == 1 && apps.size % 2 == 1) Modifier.padding(start = BottomRowIndent) else Modifier,
+                    horizontalArrangement = Arrangement.spacedBy(PortraitGap),
+                ) {
+                    indices.forEach { index ->
+                        val app = apps[index]
                         Portrait(
                             app = app,
                             onFocused = { onFocused(app) },
                             onClick = { onLaunch(app) },
                             onLongClick = { onOptions(app) },
-                            modifier = portraitModifier(columnIndex * 2 + row),
+                            modifier = portraitModifier(index)
+                                .focusRequester(requesters[index])
+                                .focusProperties {
+                                    // Up and Down stay with the same pair; a top tile without a partner goes down to the last bottom tile.
+                                    if (row == 1) {
+                                        up = requesters[index - 1]
+                                    } else {
+                                        val below = if (index + 1 < apps.size) index + 1 else index - 1
+                                        requesters.getOrNull(below)?.let { down = it }
+                                    }
+                                },
                         )
                     }
                 }
@@ -363,13 +386,13 @@ private fun Portrait(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = SkewedShape(12.dp)
+    val shape = SkewedShape(PortraitSkew)
     Card(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
-            .width(76.dp)
-            .height(60.dp)
+            .width(PortraitWidth)
+            .height(PortraitHeight)
             .onFocusChanged { if (it.hasFocus) onFocused() },
         shape = CardDefaults.shape(shape),
         colors = portraitColors(),
