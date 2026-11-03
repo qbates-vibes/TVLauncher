@@ -52,6 +52,19 @@ fun RestoreDialog(snapshot: Snapshot, onRestore: () -> Unit, onDismiss: () -> Un
 }
 
 @Composable
+fun ResetOrderDialog(onReset: () -> Unit, onDismiss: () -> Unit) {
+    LauncherDialog(title = "Reset to A–Z order?", onDismiss = onDismiss) { firstItem ->
+        Text(
+            "Every app in the All apps grid goes back to alphabetical order, and the places you moved them to are lost. " +
+                "This can't be undone.",
+            color = Color.White.copy(alpha = 0.7f),
+        )
+        DialogButton("Cancel", onDismiss, Modifier.focusRequester(firstItem))
+        DialogButton("Reset", onReset)
+    }
+}
+
+@Composable
 fun InputsDialog(
     inputs: List<TvInput>,
     onSelect: (TvInput) -> Unit,

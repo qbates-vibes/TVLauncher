@@ -82,6 +82,8 @@ fun SettingsScreen(
     val settings = state.settings
     val backButton = remember { FocusRequester() }
     var confirming by remember { mutableStateOf<Snapshot?>(null) }
+    var confirmingReset by remember { mutableStateOf(false) }
+    var resetRequested by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         withFrameNanos { }
         backButton.requestFocusSafely()
@@ -104,6 +106,13 @@ fun SettingsScreen(
         } else {
             hiddenTiles[next.packageName]?.requestFocusSafely()
         }
+    }
+    // The reset button disappears once the order is cleared, so move focus to the item above it.
+    LaunchedEffect(settings.appOrder.isEmpty()) {
+        if (!resetRequested || settings.appOrder.isNotEmpty()) return@LaunchedEffect
+        resetRequested = false
+        withFrameNanos { }
+        aboveHidden.requestFocusSafely()
     }
 
     LazyColumn(
@@ -207,7 +216,7 @@ fun SettingsScreen(
             )
         }
         if (settings.appOrder.isNotEmpty()) {
-            item { LauncherButton("Reset to A–Z order", onResetAppOrder, Modifier.focusRequester(aboveHidden)) }
+            item { LauncherButton("Reset to A–Z order", { confirmingReset = true }, Modifier.focusRequester(aboveHidden)) }
         }
 
         item { SectionTitle("Hidden apps") }
@@ -287,6 +296,17 @@ fun SettingsScreen(
                 onRestore(snapshot)
             },
             onDismiss = { confirming = null },
+        )
+    }
+
+    if (confirmingReset) {
+        ResetOrderDialog(
+            onReset = {
+                confirmingReset = false
+                resetRequested = true
+                onResetAppOrder()
+            },
+            onDismiss = { confirmingReset = false },
         )
     }
 }
