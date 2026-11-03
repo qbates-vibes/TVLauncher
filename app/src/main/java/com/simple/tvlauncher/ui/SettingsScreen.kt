@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -83,6 +85,25 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         withFrameNanos { }
         backButton.requestFocusSafely()
+    }
+
+    var showHidden by remember { mutableStateOf(false) }
+    val hiddenTiles = remember { mutableMapOf<String, FocusRequester>() }
+    // The last focusable item above the hidden apps, for when the last one is unhidden.
+    val aboveHidden = remember { FocusRequester() }
+    var unhiddenIndex by remember { mutableStateOf<Int?>(null) }
+    // An unhidden app's tile disappears, so move focus to the app that took its place.
+    LaunchedEffect(state.hiddenApps) {
+        val index = unhiddenIndex ?: return@LaunchedEffect
+        unhiddenIndex = null
+        withFrameNanos { }
+        val next = state.hiddenApps.getOrNull(index.coerceAtMost(state.hiddenApps.lastIndex))
+        if (next == null) {
+            showHidden = false
+            aboveHidden.requestFocusSafely()
+        } else {
+            hiddenTiles[next.packageName]?.requestFocusSafely()
+        }
     }
 
     LazyColumn(
@@ -174,6 +195,7 @@ fun SettingsScreen(
             LauncherButton(
                 text = "24-hour clock: " + if (settings.use24HourClock) "On" else "Off",
                 onClick = { onSetUse24HourClock(!settings.use24HourClock) },
+                modifier = if (settings.appOrder.isEmpty()) Modifier.focusRequester(aboveHidden) else Modifier,
             )
         }
 
@@ -185,15 +207,43 @@ fun SettingsScreen(
             )
         }
         if (settings.appOrder.isNotEmpty()) {
-            item { LauncherButton("Reset to A–Z order", onResetAppOrder) }
+            item { LauncherButton("Reset to A–Z order", onResetAppOrder, Modifier.focusRequester(aboveHidden)) }
         }
 
         item { SectionTitle("Hidden apps") }
         if (state.hiddenApps.isEmpty()) {
             item { HelpText("No hidden apps. On the home screen, hold OK on an app and choose Hide app.") }
-        }
-        items(state.hiddenApps, key = { "hidden:${it.packageName}" }) { app ->
-            LauncherButton("Unhide ${app.label}", { onUnhide(app.packageName) })
+        } else {
+            item {
+                LauncherButton(
+                    text = if (showHidden) "Close list" else "Show hidden apps (${state.hiddenApps.size})",
+                    onClick = { showHidden = !showHidden },
+                )
+            }
+            if (showHidden) {
+                item {
+                    LazyRow(
+                        modifier = Modifier.bleed(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        itemsIndexed(state.hiddenApps, key = { _, app -> "hidden:${app.packageName}" }) { index, app ->
+                            AppTile(
+                                app = app,
+                                onClick = {
+                                    unhiddenIndex = index
+                                    onUnhide(app.packageName)
+                                },
+                                onLongClick = {},
+                                modifier = Modifier
+                                    .width(192.dp)
+                                    .focusRequester(hiddenTiles.getOrPut(app.packageName) { FocusRequester() }),
+                            )
+                        }
+                    }
+                }
+                item { HelpText("Select an app to put it back on the home screen.") }
+            }
         }
 
         item { SectionTitle("Saved setups") }
