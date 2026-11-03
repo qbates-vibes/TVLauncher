@@ -95,6 +95,8 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onOptions = { optionsFor = it to Section.Apps },
                         onOpenInputs = { if (viewModel.isFireTv) viewModel.openFireTvInputs() else showInputs = true },
                         onOpenTvSettings = { viewModel.openTvSettings() },
+                        stockHomeLabel = if (viewModel.isFireTv) "Amazon home" else "Stock home",
+                        onOpenStockHome = { viewModel.openStockHome() },
                         onOpenLauncherSettings = { screen = Screen.Settings },
                     )
                     screen == Screen.Home -> HomeScreen(

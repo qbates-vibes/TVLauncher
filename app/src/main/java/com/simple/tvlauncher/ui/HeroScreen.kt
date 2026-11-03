@@ -133,6 +133,9 @@ fun HeroScreen(
     onOptions: (AppInfo) -> Unit,
     onOpenInputs: () -> Unit,
     onOpenTvSettings: () -> Unit,
+    /** "Amazon home" on Fire TV, "Stock home" elsewhere. */
+    stockHomeLabel: String,
+    onOpenStockHome: () -> Unit,
     onOpenLauncherSettings: () -> Unit,
 ) {
     val rosterState = rememberLazyListState()
@@ -203,6 +206,7 @@ fun HeroScreen(
                 Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SkewedButton("INPUTS", onOpenInputs)
                     SkewedButton("SETTINGS", onOpenTvSettings)
+                    SkewedButton(stockHomeLabel.uppercase(), onOpenStockHome)
                     SkewedButton("LAUNCHER", onOpenLauncherSettings)
                 }
             }
