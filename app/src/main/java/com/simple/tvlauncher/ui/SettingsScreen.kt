@@ -124,8 +124,9 @@ fun SettingsScreen(
             HelpText(
                 when (musicTrackCount) {
                     0 -> "No music yet. Copy MP3, M4A or OGG files into:\n$musicFolder\n(see README)"
-                    1 -> "1 song. It loops while the home screen is open."
-                    else -> "$musicTrackCount songs. They play once each in A–Z order, then the last one loops."
+                    1 -> "1 song. It loops while the home screen is open, starting 30 seconds in unless the TV just turned on."
+                    else -> "$musicTrackCount songs. When the TV turns on they play once each in A–Z order, then the last one loops. " +
+                        "Other visits to the home screen play only the last one, after 30 seconds."
                 }
             )
         }
