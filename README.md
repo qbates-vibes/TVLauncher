@@ -380,6 +380,7 @@ Then, if you want, turn off **Developer options** on the TV (Settings → System
 - **`adb: device unauthorized`:** look at the TV and accept the prompt. Then run `adb disconnect` and `adb connect ...` again.
 - **`adb connect` times out:** make sure the Mac and the TV are on the same Wi-Fi, and that debugging is still on (TVs sometimes turn it off after a reboot).
 - **The Inputs list is empty or switching does nothing:** your TV's input switching may not go through Android's standard TV input system. Use the remote's Input button, or open TCL's input app from the app grid.
+- **A video wallpaper stays black** (and a message says the TV can't play it): its format is too much for the TV's decoder. On the TCL, 4K at 60 fps in H.264 doesn't play, for example. Convert it with `./videowall.sh "media/the video.mp4" --push` (see "Getting the best video quality"); HEVC at 4K and 60 fps plays fine.
 - **Check that the app requests no internet access:**
   `adb shell dumpsys package com.simple.tvlauncher | grep -i "android.permission"`
   You won't see `android.permission.INTERNET` in the list.

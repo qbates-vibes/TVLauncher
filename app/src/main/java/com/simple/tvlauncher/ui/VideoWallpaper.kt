@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import android.view.SurfaceView
+import android.widget.Toast
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
@@ -66,6 +67,8 @@ fun VideoWallpaper(path: String, volume: Float, modifier: Modifier = Modifier) {
 }
 
 private class LoopingVideo(context: Context, private val path: String) {
+    private val appContext = context.applicationContext
+
     /** Width over height, once the video has loaded. */
     var aspectRatio by mutableFloatStateOf(16f / 9f)
         private set
@@ -86,6 +89,13 @@ private class LoopingVideo(context: Context, private val path: String) {
             }
             override fun onPlayerError(error: PlaybackException) {
                 Log.w(TAG, "Can't play $path", error)
+                // Otherwise the screen just stays black. The usual cause is a format the TV can't decode,
+                // such as 4K at 60 fps in H.264.
+                Toast.makeText(
+                    appContext,
+                    "This TV can't play ${File(path).name}. Converting it with videowall.sh usually fixes that.",
+                    Toast.LENGTH_LONG,
+                ).show()
             }
         })
     }
