@@ -60,7 +60,7 @@ private val FavoriteWidth = 200.dp
 private val GridTopPadding = 12.dp
 /** Room below the first row in Scenic; no more than the gap between rows, so the second row stays out of sight. */
 private val ScenicBottomMargin = TileSpacing
-private const val SCENIC_IDLE_MS = 30_000L
+private const val SCENIC_IDLE_MS = 15_000L
 
 enum class Section { Favorites, Apps }
 
