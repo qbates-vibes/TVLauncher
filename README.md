@@ -10,7 +10,7 @@ A clean, fast, ad-free home screen for Android TV / Google TV.
 - Dark theme with a solid color, or one of your own wallpaper pictures or looping videos
 - Three home screen styles, switched under **Launcher settings → Home screen style**:
   - **Classic:** favorites and a grid of all your apps
-  - **Scenic:** like Classic without favorites, with only the first row of apps showing near the bottom so your wallpaper shows. The apps rest semi-transparent and turn solid as soon as you press a button; after 30 seconds without a press they fade back. Press Down to bring up the rest
+  - **Scenic:** like Classic without favorites, with only the first row of apps showing near the bottom so your wallpaper shows. The apps rest semi-transparent and turn solid as soon as you press a button; after 30 seconds without a press they fade back. Set how see-through they rest with **Apps when idle**, under the style button. Press Down to bring up the rest
   - **Hero select:** game-style, with apps grouped by role
 - Back up your setup, copy it to another TV, or share it ([see below](#back-up-copy-or-share-your-setup))
 - **No internet permission.** No recommendations, ads or tracking. Everything is stored on the TV.

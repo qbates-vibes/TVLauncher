@@ -30,6 +30,8 @@ data class LauncherSettings(
     /** Whether the Home button helper acts at all. Lets you turn it off from the remote. */
     val redirectHome: Boolean = true,
     val homeStyle: HomeStyle = HomeStyle.Classic,
+    /** How visible Scenic's apps are while the remote is idle, from 0 (invisible) to 1 (solid). */
+    val scenicOpacity: Float = DEFAULT_SCENIC_OPACITY,
     /** Roles you picked yourself; other apps get [Role.default]. */
     val roleOverrides: Map<String, Role> = emptyMap(),
     /** Background music; plays only on the Hero select screen. */
@@ -39,6 +41,7 @@ data class LauncherSettings(
 ) {
     companion object {
         const val DEFAULT_BACKGROUND = 0xFF101418
+        const val DEFAULT_SCENIC_OPACITY = 0.2f
     }
 }
 
@@ -109,6 +112,7 @@ class SettingsStore(context: Context) {
                 appOrder = p.list(APP_ORDER),
                 redirectHome = p[REDIRECT_HOME] ?: true,
                 homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.Classic,
+                scenicOpacity = p[SCENIC_OPACITY] ?: LauncherSettings.DEFAULT_SCENIC_OPACITY,
                 roleOverrides = p.roleOverrides(),
                 music = p.sound(Sound.Music),
                 videoSound = p.sound(Sound.Video),
@@ -144,6 +148,7 @@ class SettingsStore(context: Context) {
         settings.wallpaperName?.let { p[WALLPAPER_NAME] = it } ?: p.remove(WALLPAPER_NAME)
         p[USE_24H] = settings.use24HourClock
         p[HOME_STYLE] = settings.homeStyle.name
+        p[SCENIC_OPACITY] = settings.scenicOpacity
         p.setRoles(settings.roleOverrides)
         p.setSound(Sound.Music, settings.music)
         p.setSound(Sound.Video, settings.videoSound)
@@ -157,6 +162,12 @@ class SettingsStore(context: Context) {
 
     suspend fun setMuted(sound: Sound, muted: Boolean) = store.edit { p ->
         p.setSound(sound, p.sound(sound).copy(muted = muted))
+    }
+
+    /** Moves the Scenic opacity slider by [steps] notches of 5%. */
+    suspend fun stepScenicOpacity(steps: Int) = store.edit { p ->
+        val current = p[SCENIC_OPACITY] ?: LauncherSettings.DEFAULT_SCENIC_OPACITY
+        p[SCENIC_OPACITY] = SoundLevel.snap(current + steps * SoundLevel.STEP)
     }
 
     suspend fun setHomeStyle(style: HomeStyle) = store.edit { it[HOME_STYLE] = style.name }
@@ -243,6 +254,7 @@ class SettingsStore(context: Context) {
         val FAVORITES = stringPreferencesKey("favorites")
         val APP_ORDER = stringPreferencesKey("app_order")
         val HOME_STYLE = stringPreferencesKey("home_style")
+        val SCENIC_OPACITY = floatPreferencesKey("scenic_opacity")
         val ROLES = stringPreferencesKey("role_overrides")
         val MUSIC_LEVEL = floatPreferencesKey("music_level")
         val MUSIC_MUTED = booleanPreferencesKey("music_muted")

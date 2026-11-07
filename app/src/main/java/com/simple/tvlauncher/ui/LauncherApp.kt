@@ -122,6 +122,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     screen == Screen.Home -> HomeScreen(
                         state = state,
                         scenic = scenic,
+                        scenicOpacity = state.settings.scenicOpacity,
                         focusResetKey = focusReset,
                         moving = moving,
                         onLaunch = { viewModel.launch(it) },
@@ -154,6 +155,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         onUnhide = { viewModel.setHidden(it, false) },
                         onResetAppOrder = { viewModel.resetAppOrder() },
                         onSetHomeStyle = { viewModel.setHomeStyle(it) },
+                        onStepScenicOpacity = { viewModel.stepScenicOpacity(it) },
                         logoFound = logo != null,
                         logoFolder = viewModel.logoFolder,
                         musicTrackCount = musicTracks.size,

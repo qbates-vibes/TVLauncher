@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -59,7 +60,6 @@ private val FavoriteWidth = 200.dp
 private val GridTopPadding = 12.dp
 /** Room below the first row in Scenic; no more than the gap between rows, so the second row stays out of sight. */
 private val ScenicBottomMargin = TileSpacing
-private const val SCENIC_RESTING_ALPHA = 0.45f
 private const val SCENIC_IDLE_MS = 30_000L
 
 enum class Section { Favorites, Apps }
@@ -71,13 +71,14 @@ data class Moving(val packageName: String, val section: Section)
  * The Classic home screen: buttons and clock at the top, favorites, then every app in a grid.
  * With [scenic] there are no favorites and the grid starts low on the screen with only its first
  * row showing, so the wallpaper stays visible; moving down scrolls the rest of the apps up. The
- * apps rest semi-transparent, turn solid as soon as the remote is used, and fade back after
+ * apps rest at [scenicOpacity], turn solid as soon as the remote is used, and fade back after
  * [SCENIC_IDLE_MS] without a button press.
  */
 @Composable
 fun HomeScreen(
     state: LauncherState,
     scenic: Boolean,
+    scenicOpacity: Float,
     focusResetKey: Int,
     moving: Moving?,
     onLaunch: (AppInfo) -> Unit,
@@ -107,7 +108,7 @@ fun HomeScreen(
     }
     LaunchedEffect(focusResetKey) { awake = false }
     val appsAlpha by animateFloatAsState(
-        targetValue = if (!scenic || awake) 1f else SCENIC_RESTING_ALPHA,
+        targetValue = if (!scenic || awake) 1f else scenicOpacity,
         animationSpec = tween(durationMillis = if (awake) 200 else 1200),
         label = "apps",
     )
@@ -163,7 +164,12 @@ fun HomeScreen(
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(COLUMNS),
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appsAlpha },
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    alpha = appsAlpha
+                    // Fade each drawing directly: the default draws the grid into a layer first, which
+                    // cuts off the enlarged edges of the selected tile.
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                },
                 contentPadding = PaddingValues(top = GridTopPadding, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(TileSpacing),
                 verticalArrangement = Arrangement.spacedBy(TileSpacing),

@@ -231,6 +231,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun stepSound(sound: Sound, steps: Int) = viewModelScope.launch { store.stepSound(sound, steps) }
     fun setMuted(sound: Sound, muted: Boolean) = viewModelScope.launch { store.setMuted(sound, muted) }
+    fun stepScenicOpacity(steps: Int) = viewModelScope.launch { store.stepScenicOpacity(steps) }
     fun setHomeStyle(style: HomeStyle) = viewModelScope.launch { store.setHomeStyle(style) }
     fun setRole(pkg: String, role: Role) = viewModelScope.launch { store.setRole(pkg, role) }
     fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }

@@ -53,6 +53,7 @@ object StateFile {
         .put("hidden", JSONArray(settings.hidden.sorted()))
         .put("roles", JSONObject(settings.roleOverrides.mapValues { it.value.name }))
         .put("homeStyle", settings.homeStyle.name)
+        .put("scenicOpacity", Math.round(settings.scenicOpacity * 100) / 100.0)
         .put("music", settings.music.toJson())
         .put("videoSound", settings.videoSound.toJson())
         .put("backgroundColor", "#%08X".format(settings.backgroundColor))
@@ -81,6 +82,7 @@ object StateFile {
                 ?.toMap()
                 ?: emptyMap(),
             homeStyle = HomeStyle.entries.firstOrNull { it.name == json.optString("homeStyle") } ?: defaults.homeStyle,
+            scenicOpacity = SoundLevel.snap(json.optDouble("scenicOpacity", defaults.scenicOpacity.toDouble()).toFloat()),
             music = json.sound("music", "musicVolume", Sound.Music),
             videoSound = json.sound("videoSound", "videoVolume", Sound.Video),
             backgroundColor = json.optString("backgroundColor").removePrefix("#").toLongOrNull(16) ?: defaults.backgroundColor,

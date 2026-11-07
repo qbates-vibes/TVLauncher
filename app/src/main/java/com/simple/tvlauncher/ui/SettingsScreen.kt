@@ -81,6 +81,7 @@ fun SettingsScreen(
     onUnhide: (String) -> Unit,
     onResetAppOrder: () -> Unit,
     onSetHomeStyle: (HomeStyle) -> Unit,
+    onStepScenicOpacity: (steps: Int) -> Unit,
     logoFound: Boolean,
     logoFolder: String,
     musicTrackCount: Int,
@@ -155,6 +156,15 @@ fun SettingsScreen(
                     HomeStyle.HeroSelect -> "Hero select: apps as heroes in a game-style roster."
                 }
             )
+        }
+        if (settings.homeStyle == HomeStyle.Scenic) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Apps when idle", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(190.dp))
+                    PercentSlider(settings.scenicOpacity, onStep = onStepScenicOpacity)
+                }
+            }
+            item { HelpText("How see-through the apps are until you press a button: 0% hides them, 100% keeps them solid.") }
         }
 
         item {
@@ -349,13 +359,13 @@ private fun SoundControls(name: String, sound: SoundLevel, onStep: (Int) -> Unit
             onClick = { onSetMuted(!sound.muted) },
             modifier = Modifier.width(190.dp),
         )
-        VolumeSlider(sound.position, dimmed = sound.muted, onStep = onStep)
+        PercentSlider(sound.position, onStep = onStep, dimmed = sound.muted, label = if (sound.muted) "Muted" else null)
     }
 }
 
-/** A volume slider for the remote: select it, then press Left and Right. Moving it also unmutes. */
+/** A slider for the remote: select it, then press Left and Right. Shows [label], or the position as a percentage. */
 @Composable
-private fun VolumeSlider(position: Float, dimmed: Boolean, onStep: (Int) -> Unit) {
+private fun PercentSlider(position: Float, onStep: (Int) -> Unit, dimmed: Boolean = false, label: String? = null) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(24.dp)
     Row(
@@ -392,7 +402,7 @@ private fun VolumeSlider(position: Float, dimmed: Boolean, onStep: (Int) -> Unit
         }
         Text("+", style = MaterialTheme.typography.titleMedium)
         Text(
-            text = if (dimmed) "Muted" else "${Math.round(position * 100)}%",
+            text = label ?: "${Math.round(position * 100)}%",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.width(56.dp),
         )
