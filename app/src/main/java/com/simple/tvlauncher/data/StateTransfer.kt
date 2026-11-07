@@ -30,7 +30,7 @@ class StateTransfer(context: Context, private val store: SettingsStore, private 
     private class MediaKind(val name: String, val subfolder: String?, val extensions: Set<String>)
 
     private val mediaKinds = listOf(
-        MediaKind("wallpaper", null, UserFiles.IMAGE_EXTENSIONS),
+        MediaKind("wallpaper", null, UserFiles.WALLPAPER_EXTENSIONS),
         MediaKind("logo", UserFiles.LOGO_FOLDER, UserFiles.IMAGE_EXTENSIONS),
         MediaKind("music", UserFiles.MUSIC_FOLDER, UserFiles.AUDIO_EXTENSIONS),
     )

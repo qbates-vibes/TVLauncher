@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -31,23 +32,63 @@ data class LauncherSettings(
     val homeStyle: HomeStyle = HomeStyle.Classic,
     /** Roles you picked yourself; other apps get [Role.default]. */
     val roleOverrides: Map<String, Role> = emptyMap(),
-    val musicVolume: MusicVolume = MusicVolume.Quiet,
+    /** Background music; plays only on the Hero select screen. */
+    val music: SoundLevel = Sound.Music.default,
+    /** The sound of a video wallpaper. */
+    val videoSound: SoundLevel = Sound.Video.default,
 ) {
     companion object {
         const val DEFAULT_BACKGROUND = 0xFF101418
     }
 }
 
-enum class HomeStyle { HeroSelect, Classic }
+enum class HomeStyle(val label: String) {
+    Classic("Classic"),
+    /** Classic without favorites, with the apps low on the screen so the background shows. */
+    Scenic("Scenic"),
+    HeroSelect("Hero select");
 
-/** Background music loudness, as a fraction of the TV's media volume. */
-enum class MusicVolume(val label: String, val level: Float) {
-    Off("Off", 0f),
-    Quiet("Quiet", 0.12f),
-    Medium("Medium", 0.25f),
-    Loud("Loud", 0.45f);
+    fun next(): HomeStyle = entries[(ordinal + 1) % entries.size]
+}
 
-    fun next(): MusicVolume = entries[(ordinal + 1) % entries.size]
+
+/** A sound setting: a volume slider position from 0 to 1, and a mute switch. */
+data class SoundLevel(val position: Float, val muted: Boolean = false) {
+    /**
+     * What to play at, as a fraction of the TV's media volume. The slider position is squared
+     * because loudness isn't linear: this way each step of the slider sounds about as big as the last.
+     */
+    val volume: Float get() = if (muted) 0f else position * position
+
+    companion object {
+        const val STEP = 0.05f
+
+        /** Rounds to a whole slider step, between 0 and 1. */
+        fun snap(position: Float): Float = (Math.round(position / STEP) * STEP).coerceIn(0f, 1f)
+    }
+}
+
+/** The launcher's two sounds, with their defaults and what the older Off/Quiet/... settings map to. */
+enum class Sound(val default: SoundLevel, val legacy: Map<String, SoundLevel>) {
+    Music(
+        default = SoundLevel(0.35f),
+        legacy = mapOf(
+            "Off" to SoundLevel(0.35f, muted = true),
+            "Quiet" to SoundLevel(0.35f),
+            "Medium" to SoundLevel(0.5f),
+            "Loud" to SoundLevel(0.65f),
+        ),
+    ),
+    Video(
+        default = SoundLevel(0.4f),
+        legacy = mapOf(
+            "Muted" to SoundLevel(0.4f, muted = true),
+            "Quiet" to SoundLevel(0.4f),
+            "Medium" to SoundLevel(0.6f),
+            "Loud" to SoundLevel(0.75f),
+            "Full" to SoundLevel(1f),
+        ),
+    ),
 }
 
 private val Context.dataStore by preferencesDataStore(name = "launcher_settings")
@@ -69,7 +110,8 @@ class SettingsStore(context: Context) {
                 redirectHome = p[REDIRECT_HOME] ?: true,
                 homeStyle = HomeStyle.entries.firstOrNull { it.name == p[HOME_STYLE] } ?: HomeStyle.Classic,
                 roleOverrides = p.roleOverrides(),
-                musicVolume = MusicVolume.entries.firstOrNull { it.name == p[MUSIC_VOLUME] } ?: MusicVolume.Quiet,
+                music = p.sound(Sound.Music),
+                videoSound = p.sound(Sound.Video),
             )
         }
 
@@ -103,10 +145,19 @@ class SettingsStore(context: Context) {
         p[USE_24H] = settings.use24HourClock
         p[HOME_STYLE] = settings.homeStyle.name
         p.setRoles(settings.roleOverrides)
-        p[MUSIC_VOLUME] = settings.musicVolume.name
+        p.setSound(Sound.Music, settings.music)
+        p.setSound(Sound.Video, settings.videoSound)
     }
 
-    suspend fun setMusicVolume(volume: MusicVolume) = store.edit { it[MUSIC_VOLUME] = volume.name }
+    /** Moves a volume slider by [steps] notches (negative is quieter), and unmutes it. */
+    suspend fun stepSound(sound: Sound, steps: Int) = store.edit { p ->
+        val current = p.sound(sound)
+        p.setSound(sound, SoundLevel(SoundLevel.snap(current.position + steps * SoundLevel.STEP)))
+    }
+
+    suspend fun setMuted(sound: Sound, muted: Boolean) = store.edit { p ->
+        p.setSound(sound, p.sound(sound).copy(muted = muted))
+    }
 
     suspend fun setHomeStyle(style: HomeStyle) = store.edit { it[HOME_STYLE] = style.name }
 
@@ -147,6 +198,24 @@ class SettingsStore(context: Context) {
             Role.entries.firstOrNull { it.name == roleName }?.let { pkg to it }
         }.toMap()
 
+    /** Falls back to the older one-button setting (Off, Quiet, Medium, ...) if the slider hasn't been used yet. */
+    private fun Preferences.sound(sound: Sound): SoundLevel {
+        val (levelKey, mutedKey, legacyKey) = soundKeys(sound)
+        val legacy = this[legacyKey]?.let { sound.legacy[it] } ?: sound.default
+        return SoundLevel(this[levelKey] ?: legacy.position, this[mutedKey] ?: legacy.muted)
+    }
+
+    private fun MutablePreferences.setSound(sound: Sound, level: SoundLevel) {
+        val (levelKey, mutedKey, _) = soundKeys(sound)
+        this[levelKey] = level.position
+        this[mutedKey] = level.muted
+    }
+
+    private fun soundKeys(sound: Sound) = when (sound) {
+        Sound.Music -> Triple(MUSIC_LEVEL, MUSIC_MUTED, MUSIC_VOLUME)
+        Sound.Video -> Triple(VIDEO_LEVEL, VIDEO_MUTED, VIDEO_VOLUME)
+    }
+
     private fun MutablePreferences.setFavorites(list: List<String>) {
         this[FAVORITES] = list.joinToString(",")
     }
@@ -175,7 +244,13 @@ class SettingsStore(context: Context) {
         val APP_ORDER = stringPreferencesKey("app_order")
         val HOME_STYLE = stringPreferencesKey("home_style")
         val ROLES = stringPreferencesKey("role_overrides")
+        val MUSIC_LEVEL = floatPreferencesKey("music_level")
+        val MUSIC_MUTED = booleanPreferencesKey("music_muted")
+        val VIDEO_LEVEL = floatPreferencesKey("video_level")
+        val VIDEO_MUTED = booleanPreferencesKey("video_muted")
+        // The older one-button settings, read only to carry them over.
         val MUSIC_VOLUME = stringPreferencesKey("music_volume")
+        val VIDEO_VOLUME = stringPreferencesKey("video_volume")
         val HIDDEN = stringSetPreferencesKey("hidden")
         val BACKGROUND = longPreferencesKey("background_color")
         val USE_WALLPAPER = booleanPreferencesKey("use_wallpaper")

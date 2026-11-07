@@ -19,7 +19,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +42,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val wallpaper by viewModel.wallpaper.collectAsStateWithLifecycle()
+    val wallpaperVideo by viewModel.wallpaperVideo.collectAsStateWithLifecycle()
     val wallpaperOptions by viewModel.wallpaperOptions.collectAsStateWithLifecycle()
     val logo by viewModel.logo.collectAsStateWithLifecycle()
     val musicTracks by viewModel.musicTracks.collectAsStateWithLifecycle()
@@ -79,17 +82,34 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     .background(Color(state.settings.backgroundColor))
             ) {
                 val picture = wallpaper
-                if (state.settings.useWallpaper && picture != null) {
-                    Image(picture, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    // Darken the picture a little so text and tiles stay readable.
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+                val video = wallpaperVideo
+                val scenic = state.settings.homeStyle == HomeStyle.Scenic
+                val hasWallpaper = state.settings.useWallpaper && (picture != null || video != null)
+                if (hasWallpaper) {
+                    if (video != null) {
+                        VideoWallpaper(video, state.settings.videoSound.volume, Modifier.fillMaxSize())
+                    } else if (picture != null) {
+                        Image(picture, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    }
+                    // Darken the wallpaper so text and tiles stay readable. Scenic shades only the top and bottom edges.
+                    val shade = if (scenic && screen == Screen.Home) {
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.45f),
+                            0.2f to Color.Transparent,
+                            0.6f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.6f),
+                        )
+                    } else {
+                        SolidColor(Color.Black.copy(alpha = 0.35f))
+                    }
+                    Box(Modifier.fillMaxSize().background(shade))
                 }
 
                 when {
                     screen == Screen.Home && state.settings.homeStyle == HomeStyle.HeroSelect -> HeroScreen(
                         state = state,
                         focusResetKey = focusReset,
-                        hasWallpaper = state.settings.useWallpaper && picture != null,
+                        hasWallpaper = hasWallpaper,
                         logo = logo,
                         onLaunch = { viewModel.launch(it) },
                         onOptions = { optionsFor = it to Section.Apps },
@@ -101,6 +121,7 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                     )
                     screen == Screen.Home -> HomeScreen(
                         state = state,
+                        scenic = scenic,
                         focusResetKey = focusReset,
                         moving = moving,
                         onLaunch = { viewModel.launch(it) },
@@ -137,7 +158,8 @@ fun LauncherApp(viewModel: LauncherViewModel, homePresses: StateFlow<Int>) {
                         logoFolder = viewModel.logoFolder,
                         musicTrackCount = musicTracks.size,
                         musicFolder = viewModel.musicFolder,
-                        onSetMusicVolume = { viewModel.setMusicVolume(it) },
+                        onStepSound = { sound, steps -> viewModel.stepSound(sound, steps) },
+                        onSetMuted = { sound, muted -> viewModel.setMuted(sound, muted) },
                         snapshots = snapshots,
                         onRestore = { viewModel.restore(it) },
                         onOpenAccessibilitySettings = {

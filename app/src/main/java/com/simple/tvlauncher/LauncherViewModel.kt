@@ -17,7 +17,7 @@ import com.simple.tvlauncher.data.StateTransfer
 import com.simple.tvlauncher.data.TvInput
 import com.simple.tvlauncher.data.TvInputs
 import com.simple.tvlauncher.data.BackgroundMusic
-import com.simple.tvlauncher.data.MusicVolume
+import com.simple.tvlauncher.data.Sound
 import com.simple.tvlauncher.data.UserFiles
 import com.simple.tvlauncher.data.WallpaperOption
 import com.simple.tvlauncher.data.inSavedOrder
@@ -69,22 +69,38 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LauncherState())
 
-    /** Pictures in the wallpaper folder as path + last-modified time, so they're only re-decoded when files change. */
+    /** Pictures and videos in the wallpaper folder as path + last-modified time, so they're only re-decoded when files change. */
     private val wallpaperFiles = MutableStateFlow<List<Pair<String, Long>>>(emptyList())
 
-    val wallpaper: StateFlow<ImageBitmap?> = combine(store.settings, wallpaperFiles) { settings, files ->
+    /** The wallpaper file in use, or null for a plain color. */
+    private val chosenWallpaper = combine(store.settings, wallpaperFiles) { settings, files ->
         if (!settings.useWallpaper) return@combine null
-        // If the chosen picture was deleted (or none was chosen yet), use the first one.
+        // If the chosen file was deleted (or none was chosen yet), use the first one.
         files.firstOrNull { File(it.first).name == settings.wallpaperName } ?: files.firstOrNull()
-    }
-        .distinctUntilChanged()
-        .map { file -> file?.let { withContext(Dispatchers.IO) { UserFiles.loadImage(File(it.first)) } } }
+    }.distinctUntilChanged()
+
+    /** The wallpaper picture, if the wallpaper is a picture. */
+    val wallpaper: StateFlow<ImageBitmap?> = chosenWallpaper
+        .map { file ->
+            file?.takeUnless { UserFiles.isVideo(File(it.first)) }
+                ?.let { withContext(Dispatchers.IO) { UserFiles.loadImage(File(it.first)) } }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Path of the wallpaper video, if the wallpaper is a video. */
+    val wallpaperVideo: StateFlow<String?> = chosenWallpaper
+        .map { file -> file?.first?.takeIf { UserFiles.isVideo(File(it)) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val wallpaperOptions: StateFlow<List<WallpaperOption>> = wallpaperFiles
         .map { files ->
             withContext(Dispatchers.IO) {
-                files.map { (path, _) -> File(path).let { WallpaperOption(it.name, UserFiles.loadImage(it, maxWidth = 320)) } }
+                files.map { (path, _) ->
+                    val file = File(path)
+                    val isVideo = UserFiles.isVideo(file)
+                    val thumbnail = if (isVideo) UserFiles.videoThumbnail(file) else UserFiles.loadImage(file, maxWidth = 320)
+                    WallpaperOption(file.name, thumbnail, isVideo)
+                }
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -109,11 +125,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         // Fire TV's flash of Amazon's home screen) pauses and resumes it for a moment, so wait a little
         // before stopping; coming back in time leaves the music, or the wait before it, running.
         viewModelScope.launch {
-            combine(resumed, _musicTracks, store.settings.map { it.musicVolume }.distinctUntilChanged()) { onScreen, tracks, volume ->
-                Triple(onScreen, tracks, volume)
-            }.collectLatest { (onScreen, tracks, volume) ->
+            // Music belongs to the Hero select screen, and a video wallpaper with its sound on takes its place.
+            val musicLevel = combine(store.settings, wallpaperVideo) { settings, video ->
+                when {
+                    settings.homeStyle != HomeStyle.HeroSelect -> 0f
+                    video != null && settings.videoSound.volume > 0f -> 0f
+                    else -> settings.music.volume
+                }
+            }.distinctUntilChanged()
+            combine(resumed, _musicTracks, musicLevel) { onScreen, tracks, level ->
+                Triple(onScreen, tracks, level)
+            }.collectLatest { (onScreen, tracks, level) ->
                 if (onScreen) {
-                    music.play(tracks, volume.level)
+                    music.play(tracks, level)
                 } else {
                     delay(MUSIC_STOP_GRACE_MS)
                     music.stop()
@@ -160,7 +184,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun refreshFiles() = withContext(Dispatchers.IO) {
-        wallpaperFiles.value = UserFiles.list(app, null, UserFiles.IMAGE_EXTENSIONS).map { it.path to it.lastModified() }
+        wallpaperFiles.value = UserFiles.list(app, null, UserFiles.WALLPAPER_EXTENSIONS).map { it.path to it.lastModified() }
         logoFile.value = UserFiles.list(app, UserFiles.LOGO_FOLDER, UserFiles.IMAGE_EXTENSIONS).firstOrNull()
             ?.let { it.path to it.lastModified() }
         _musicTracks.value = UserFiles.list(app, UserFiles.MUSIC_FOLDER, UserFiles.AUDIO_EXTENSIONS).map { it.path }
@@ -205,7 +229,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         store.moveApp(pkg, delta, visibleAToZ)
     }
 
-    fun setMusicVolume(volume: MusicVolume) = viewModelScope.launch { store.setMusicVolume(volume) }
+    fun stepSound(sound: Sound, steps: Int) = viewModelScope.launch { store.stepSound(sound, steps) }
+    fun setMuted(sound: Sound, muted: Boolean) = viewModelScope.launch { store.setMuted(sound, muted) }
     fun setHomeStyle(style: HomeStyle) = viewModelScope.launch { store.setHomeStyle(style) }
     fun setRole(pkg: String, role: Role) = viewModelScope.launch { store.setRole(pkg, role) }
     fun resetAppOrder() = viewModelScope.launch { store.resetAppOrder() }

@@ -53,7 +53,8 @@ object StateFile {
         .put("hidden", JSONArray(settings.hidden.sorted()))
         .put("roles", JSONObject(settings.roleOverrides.mapValues { it.value.name }))
         .put("homeStyle", settings.homeStyle.name)
-        .put("musicVolume", settings.musicVolume.name)
+        .put("music", settings.music.toJson())
+        .put("videoSound", settings.videoSound.toJson())
         .put("backgroundColor", "#%08X".format(settings.backgroundColor))
         .put("useWallpaper", settings.useWallpaper)
         .put("wallpaperName", settings.wallpaperName ?: JSONObject.NULL)
@@ -80,7 +81,8 @@ object StateFile {
                 ?.toMap()
                 ?: emptyMap(),
             homeStyle = HomeStyle.entries.firstOrNull { it.name == json.optString("homeStyle") } ?: defaults.homeStyle,
-            musicVolume = MusicVolume.entries.firstOrNull { it.name == json.optString("musicVolume") } ?: defaults.musicVolume,
+            music = json.sound("music", "musicVolume", Sound.Music),
+            videoSound = json.sound("videoSound", "videoVolume", Sound.Video),
             backgroundColor = json.optString("backgroundColor").removePrefix("#").toLongOrNull(16) ?: defaults.backgroundColor,
             useWallpaper = json.optBoolean("useWallpaper", defaults.useWallpaper),
             wallpaperName = json.optString("wallpaperName").takeIf { it.isNotBlank() && !json.isNull("wallpaperName") },
@@ -96,6 +98,16 @@ object StateFile {
             )
         }
         return SavedSetup(settings, source)
+    }
+
+    private fun SoundLevel.toJson() = JSONObject().put("level", Math.round(position * 100) / 100.0).put("muted", muted)
+
+    /** Reads a volume slider and mute switch, or the older one-word setting (Off, Quiet, ...) from earlier setups. */
+    private fun JSONObject.sound(name: String, legacyName: String, sound: Sound): SoundLevel {
+        optJSONObject(name)?.let {
+            return SoundLevel(SoundLevel.snap(it.optDouble("level", sound.default.position.toDouble()).toFloat()), it.optBoolean("muted"))
+        }
+        return sound.legacy[optString(legacyName)] ?: sound.default
     }
 
     /** Package names only: anything else could break the comma-separated way they're stored. */

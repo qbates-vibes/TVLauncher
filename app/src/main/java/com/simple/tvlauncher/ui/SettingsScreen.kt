@@ -5,11 +5,16 @@ package com.simple.tvlauncher.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,7 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,7 +51,8 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.simple.tvlauncher.LauncherState
 import com.simple.tvlauncher.data.HomeStyle
-import com.simple.tvlauncher.data.MusicVolume
+import com.simple.tvlauncher.data.Sound
+import com.simple.tvlauncher.data.SoundLevel
 import com.simple.tvlauncher.data.Snapshot
 import com.simple.tvlauncher.data.StateTransfer
 import com.simple.tvlauncher.data.WallpaperOption
@@ -73,7 +85,8 @@ fun SettingsScreen(
     logoFolder: String,
     musicTrackCount: Int,
     musicFolder: String,
-    onSetMusicVolume: (MusicVolume) -> Unit,
+    onStepSound: (Sound, steps: Int) -> Unit,
+    onSetMuted: (Sound, Boolean) -> Unit,
     /** Newest first. */
     snapshots: List<Snapshot>,
     onRestore: (Snapshot) -> Unit,
@@ -129,10 +142,18 @@ fun SettingsScreen(
 
         item { SectionTitle("Home screen style") }
         item {
-            val heroSelect = settings.homeStyle == HomeStyle.HeroSelect
             LauncherButton(
-                text = "Style: " + if (heroSelect) "Hero select" else "Classic",
-                onClick = { onSetHomeStyle(if (heroSelect) HomeStyle.Classic else HomeStyle.HeroSelect) },
+                text = "Style: " + settings.homeStyle.label,
+                onClick = { onSetHomeStyle(settings.homeStyle.next()) },
+            )
+        }
+        item {
+            HelpText(
+                when (settings.homeStyle) {
+                    HomeStyle.Classic -> "Classic: favorites and all your apps in a grid."
+                    HomeStyle.Scenic -> "Scenic: like Classic without favorites, with the apps low on the screen so your wallpaper shows. Press Down to bring up more apps."
+                    HomeStyle.HeroSelect -> "Hero select: apps as heroes in a game-style roster."
+                }
             )
         }
 
@@ -143,12 +164,9 @@ fun SettingsScreen(
             )
         }
 
-        item { SectionTitle("Background music") }
+        item { SectionTitle("Background music (Hero select only)") }
         item {
-            LauncherButton(
-                text = "Music: " + settings.musicVolume.label,
-                onClick = { onSetMusicVolume(settings.musicVolume.next()) },
-            )
+            SoundControls("Music", settings.music, { onStepSound(Sound.Music, it) }, { onSetMuted(Sound.Music, it) })
         }
         item {
             HelpText(
@@ -173,10 +191,10 @@ fun SettingsScreen(
                 }
             }
         }
-        item { SectionTitle("Wallpaper picture") }
+        item { SectionTitle("Wallpaper picture or video") }
         if (wallpaperOptions.isEmpty()) {
             item {
-                HelpText("No pictures yet. Copy JPG, PNG or WebP pictures into:\n$wallpaperFolder\n(see README for the adb push command)")
+                HelpText("No pictures or videos yet. Copy JPG, PNG or WebP pictures, or MP4, MKV or WebM videos, into:\n$wallpaperFolder\n(see README for the adb push command)")
             }
         } else {
             // Same fallback as the home screen: a missing or unset choice means the first picture.
@@ -196,7 +214,13 @@ fun SettingsScreen(
                     }
                 }
             }
-            item { HelpText("To add more, copy pictures into $wallpaperFolder (see README).") }
+            item { HelpText("To add more, copy pictures or videos into $wallpaperFolder (see README).") }
+        }
+        item {
+            SoundControls("Video sound", settings.videoSound, { onStepSound(Sound.Video, it) }, { onSetMuted(Sound.Video, it) })
+        }
+        item {
+            HelpText("For video wallpapers. Background music stays off while a video's sound is on.")
         }
 
         item { SectionTitle("Clock") }
@@ -316,6 +340,65 @@ private fun HelpText(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.7f))
 }
 
+/** A mute button and a volume slider side by side. */
+@Composable
+private fun SoundControls(name: String, sound: SoundLevel, onStep: (Int) -> Unit, onSetMuted: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        LauncherButton(
+            text = "$name: " + if (sound.muted) "Muted" else "On",
+            onClick = { onSetMuted(!sound.muted) },
+            modifier = Modifier.width(190.dp),
+        )
+        VolumeSlider(sound.position, dimmed = sound.muted, onStep = onStep)
+    }
+}
+
+/** A volume slider for the remote: select it, then press Left and Right. Moving it also unmutes. */
+@Composable
+private fun VolumeSlider(position: Float, dimmed: Boolean, onStep: (Int) -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(24.dp)
+    Row(
+        modifier = Modifier
+            .onFocusChanged { focused = it.isFocused }
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> { onStep(-1); true }
+                    Key.DirectionRight -> { onStep(1); true }
+                    else -> false
+                }
+            }
+            .focusable()
+            .background(Color.White.copy(alpha = if (focused) 0.18f else 0.08f), shape)
+            .border(if (focused) 3.dp else 1.dp, Color.White.copy(alpha = if (focused) 1f else 0.3f), shape)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("−", style = MaterialTheme.typography.titleMedium)
+        Box(
+            Modifier
+                .width(260.dp)
+                .height(8.dp)
+                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(position)
+                    .fillMaxHeight()
+                    .background(Color.White.copy(alpha = if (dimmed) 0.35f else 1f), RoundedCornerShape(4.dp))
+            )
+        }
+        Text("+", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = if (dimmed) "Muted" else "${Math.round(position * 100)}%",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.width(56.dp),
+        )
+    }
+}
+
 @Composable
 private fun WallpaperThumbnail(option: WallpaperOption, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(8.dp)
@@ -339,7 +422,7 @@ private fun WallpaperThumbnail(option: WallpaperOption, selected: Boolean, onCli
             Image(it, contentDescription = option.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         }
         Text(
-            text = (if (selected) "✓ " else "") + option.name.substringBeforeLast('.'),
+            text = (if (selected) "✓ " else "") + (if (option.isVideo) "▶ " else "") + option.name.substringBeforeLast('.'),
             style = MaterialTheme.typography.labelMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

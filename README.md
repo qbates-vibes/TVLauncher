@@ -7,8 +7,11 @@ A clean, fast, ad-free home screen for Android TV / Google TV.
 - Hide apps you never use
 - Shortcuts to TV Settings and to TV inputs (HDMI)
 - Clock in the top-right corner
-- Dark theme with a solid color or one of your own wallpaper pictures
-- Two home screen styles: Classic (the grid) and Hero select (game-style, with apps grouped by role). Switch under **Launcher settings → Home screen style**
+- Dark theme with a solid color, or one of your own wallpaper pictures or looping videos
+- Three home screen styles, switched under **Launcher settings → Home screen style**:
+  - **Classic:** favorites and a grid of all your apps
+  - **Scenic:** like Classic without favorites, with only the first row of apps showing near the bottom so your wallpaper shows. The apps rest semi-transparent and turn solid as soon as you press a button; after 30 seconds without a press they fade back. Press Down to bring up the rest
+  - **Hero select:** game-style, with apps grouped by role
 - Back up your setup, copy it to another TV, or share it ([see below](#back-up-copy-or-share-your-setup))
 - **No internet permission.** No recommendations, ads or tracking. Everything is stored on the TV.
 
@@ -152,9 +155,9 @@ You should see `holders=com.simple.tvlauncher`.
 
 Now press **Home** on the remote. If Simple Launcher opens, you're done. If the stock Google TV screen still opens, read the next section.
 
-## Optional: wallpaper pictures
+## Optional: wallpaper pictures and videos
 
-You can copy as many pictures as you like to the TV, then choose between them on the TV. Landscape 1920×1080 JPG, PNG or WebP pictures work best.
+You can copy as many pictures and videos as you like to the TV, then choose between them on the TV. Landscape 1920×1080 JPG, PNG or WebP pictures work best. Videos can be MP4, MKV, WebM or MOV; a 1080p MP4 (H.264) is the safest choice.
 
 1. Open Simple Launcher at least once, so the TV creates the folder for it.
 2. Copy pictures from your Mac. You can list several at once; keep the folder path at the end, including the final `/`:
@@ -165,7 +168,7 @@ You can copy as many pictures as you like to the TV, then choose between them on
    ```sh
    adb push ~/Pictures/TV\ Wallpapers/. /sdcard/Android/data/com.simple.tvlauncher/files/
    ```
-3. On the TV, open **Launcher settings**. Under **Wallpaper picture**, select the one you want and press OK. The selected picture shows a ✓.
+3. On the TV, open **Launcher settings**. Under **Wallpaper picture or video**, select the one you want and press OK. The selected one shows a ✓, and videos show a ▶.
 
 To go back to a plain color, pick a color under **Background color**.
 
@@ -181,7 +184,34 @@ Remove one (use the exact name from the list above):
 adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/forest.jpg
 ```
 
-If you remove the picture you're currently using, the launcher switches to the first remaining picture.
+If you remove the picture or video you're currently using, the launcher switches to the first remaining one.
+
+**Videos** fill the screen (the edges are cropped if the shape doesn't match), loop, and play only while the launcher is on screen. Opening an app stops the video, and it carries on from the same spot when you come back. Video sound has its own mute button and volume slider under **Launcher settings → Video sound**. Background music stays off while a video plays with sound; mute the video to hear your music instead.
+
+### Getting the best video quality
+
+What I measured on the TCL (Realtek RTD6748, 4K panel, interface drawn at 1080p, 18 GB free):
+
+- **The launcher sends videos straight to the TV's video layer**, like Netflix does, so a 4K video shows at the panel's full 4K even though the launcher's own interface is 1080p.
+- **The TV decodes H.264, HEVC (H.265), VP9 and AV1 in hardware, up to 4K.** HEVC gives the same picture as H.264 at roughly half the size.
+- **Memory (RAM) doesn't depend on the loop's length.** The video plays from storage a little at a time; only its resolution changes how much memory the decoder uses, and the launcher frees the decoder whenever you open an app.
+- **Storage grows with length:**
+
+| | Data rate | Per minute | 2-minute loop |
+|---|---|---|---|
+| A typical 720p H.264 download (like the first fireplace) | about 2 Mbps | about 16 MB | about 32 MB |
+| 1080p HEVC, good quality | about 6–10 Mbps | 45–75 MB | 90–150 MB |
+| 4K HEVC, good quality | about 15–30 Mbps | 110–225 MB | 225–450 MB |
+
+**The best choice for this TV: a 4K HEVC loop about 2 minutes long, roughly 300 MB.** Beyond a minute or two nobody notices a fire (or rain, or waves) repeating, so a longer loop only uses more storage. The loop point matters more than the length: a hard cut from the last frame back to the first is the most visible flaw, so the loop should crossfade.
+
+**The source matters most.** A 720p video at 2 Mbps will look soft and blocky however it's converted; re-encoding can't add detail that isn't there. Start from the best original you can find (4K, or at least 1080p), then let `videowall.sh` do the rest:
+
+```sh
+./videowall.sh "media/My Fireplace 4K.mp4" --push
+```
+
+It makes a 2-minute seamless loop in `media/` (which git ignores) using the settings above, keeps the original resolution up to 4K (it never upscales), adds a thumbnail, and with `--push` copies it to the TV. Options: `--length 90` for a 90-second loop, `--start 30` to start 30 seconds into the original. A 2-minute 4K loop takes about 8 minutes to make on this Mac.
 
 ## Optional: hero select logo and background music
 
@@ -202,11 +232,12 @@ adb push ~/Music/menu-theme.mp3 /sdcard/Android/data/com.simple.tvlauncher/files
 Press Home on the TV afterwards so the launcher picks up the new files.
 
 How the music behaves:
+- It plays only on the **Hero select** home screen. Classic and Scenic are silent (apart from a video wallpaper's own sound).
 - It fades in, and stops as soon as you open an app or the screensaver starts.
 - The intro plays only the first time the home screen shows after the TV turns on (pressing the remote's power button off and on again counts). Coming back to the home screen any other time skips the intro: after 30 seconds, the last file fades in and loops.
 - Moving around inside the launcher (Launcher settings, pressing Home) doesn't interrupt it, or restart the 30-second wait.
 - It won't start if something else is already playing (for example, Spotify in the background).
-- Change the loudness, or turn it off, under **Launcher settings → Background music** (Off, Quiet, Medium, Loud). Quiet is the default.
+- Change the loudness under **Launcher settings → Background music**: select the slider and press Left or Right (moving it also unmutes). The button next to it mutes and unmutes.
 
 To remove files, list them and delete by name:
 
@@ -219,7 +250,7 @@ adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/music/menu-theme.m
 
 ## Back up, copy or share your setup
 
-`tvstate.sh` saves a TV's whole setup to one file on your Mac, and loads a saved setup onto any TV, including a Fire TV. A setup holds your favorites, app order, hidden apps, Hero roles, home screen style, colors, clock and music volume, plus your wallpaper, logo and music files. It doesn't change anything about the Home button.
+`tvstate.sh` saves a TV's whole setup to one file on your Mac, and loads a saved setup onto any TV, including a Fire TV. A setup holds your favorites, app order, hidden apps, Hero roles, home screen style, colors, clock, music volume and video sound, plus your wallpaper pictures and videos, logo and music files. It doesn't change anything about the Home button.
 
 ```sh
 ./tvstate.sh save living-room                 # saves profiles/living-room.zip
@@ -228,7 +259,7 @@ adb shell rm /sdcard/Android/data/com.simple.tvlauncher/files/music/menu-theme.m
 ```
 
 - **More than one TV connected?** Add the TV's address at the end, for example `./tvstate.sh load living-room 192.168.1.42:5555`.
-- **Sharing:** send someone the `.zip` from the `profiles` folder. They put it in their own `profiles` folder (or give its full path) and run `./tvstate.sh load`. Your wallpaper pictures are included, so add `--no-media` when saving to leave pictures and music out. `--no-media` on `load` keeps the TV's own pictures and music.
+- **Sharing:** send someone the `.zip` from the `profiles` folder. They put it in their own `profiles` folder (or give its full path) and run `./tvstate.sh load`. Your wallpaper pictures and videos are included (videos can make the file large), so add `--no-media` when saving to leave pictures and music out. `--no-media` on `load` keeps the TV's own pictures and music.
 - **Apps that aren't installed** on the other TV stay in the setup and appear in their place if you install them later. Apps that have a different name on Fire TV and Google TV, such as YouTube, are matched up.
 - **When it loads:** right away if Simple Launcher is on screen. Otherwise the next time it opens, so it never interrupts someone watching.
 - **Changed your mind?** On the TV, open **Launcher settings → Saved setups** and choose **Undo last change**. The TV keeps the last 10 setups it replaced there. They survive app updates but not uninstalling the app, so keep the `.zip` on your Mac as your real backup.
@@ -372,9 +403,11 @@ app/src/main/
     data/BackgroundMusic.kt    Plays the music you push with adb
     data/TvInputs.kt           HDMI and other inputs via TvInputManager
     data/UserFiles.kt          Lists and loads the wallpaper, logo and music you push with adb
-    ui/                        Compose for TV screens: Classic and Hero select home, dialogs, settings, clock
+    ui/VideoWallpaper.kt       Looping video wallpaper on the TV's video layer
+    ui/                        Compose for TV screens: Classic/Scenic and Hero select home, video wallpaper, dialogs, settings, clock
 install.sh                     Builds and installs on the connected TV
 tvstate.sh                     Saves and loads setups (see "Back up, copy or share your setup")
+videowall.sh                   Turns a video into a seamless wallpaper loop (see "Getting the best video quality")
 ```
 
 The project also opens directly in Android Studio (File → Open → this folder).

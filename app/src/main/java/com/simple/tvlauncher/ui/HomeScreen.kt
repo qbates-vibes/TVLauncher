@@ -2,14 +2,18 @@
 
 package com.simple.tvlauncher.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,8 +28,10 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -33,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -41,21 +48,36 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import com.simple.tvlauncher.LauncherState
 import com.simple.tvlauncher.data.AppInfo
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 
 private const val COLUMNS = 5
 private val SidePadding = 48.dp
 private val TileSpacing = 20.dp
 private val FavoriteWidth = 200.dp
+private val GridTopPadding = 12.dp
+/** Room below the first row in Scenic; no more than the gap between rows, so the second row stays out of sight. */
+private val ScenicBottomMargin = TileSpacing
+private const val SCENIC_RESTING_ALPHA = 0.45f
+private const val SCENIC_IDLE_MS = 30_000L
 
 enum class Section { Favorites, Apps }
 
 /** The tile currently being moved, and which section it's being moved in. */
 data class Moving(val packageName: String, val section: Section)
 
+/**
+ * The Classic home screen: buttons and clock at the top, favorites, then every app in a grid.
+ * With [scenic] there are no favorites and the grid starts low on the screen with only its first
+ * row showing, so the wallpaper stays visible; moving down scrolls the rest of the apps up. The
+ * apps rest semi-transparent, turn solid as soon as the remote is used, and fade back after
+ * [SCENIC_IDLE_MS] without a button press.
+ */
 @Composable
 fun HomeScreen(
     state: LauncherState,
+    scenic: Boolean,
     focusResetKey: Int,
     moving: Moving?,
     onLaunch: (AppInfo) -> Unit,
@@ -70,8 +92,25 @@ fun HomeScreen(
 ) {
     val gridState = rememberLazyGridState()
     val firstTile = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    val showFavorites = !scenic && state.favorites.isNotEmpty()
 
     var hasFocus by remember { mutableStateOf(false) }
+
+    var buttonPresses by remember { mutableIntStateOf(0) }
+    var awake by remember { mutableStateOf(false) }
+    LaunchedEffect(buttonPresses) {
+        if (buttonPresses == 0) return@LaunchedEffect
+        awake = true
+        delay(SCENIC_IDLE_MS)
+        awake = false
+    }
+    LaunchedEffect(focusResetKey) { awake = false }
+    val appsAlpha by animateFloatAsState(
+        targetValue = if (!scenic || awake) 1f else SCENIC_RESTING_ALPHA,
+        animationSpec = tween(durationMillis = if (awake) 200 else 1200),
+        label = "apps",
+    )
 
     // Focus the first tile when apps first load, and whenever Home is pressed.
     LaunchedEffect(state.loaded, focusResetKey) {
@@ -92,7 +131,16 @@ fun HomeScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().onFocusChanged { hasFocus = it.hasFocus }) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .onFocusChanged { hasFocus = it.hasFocus }
+            .onPreviewKeyEvent {
+                // Any button wakes the Scenic apps; the press still does its usual job.
+                if (scenic && it.type == KeyEventType.KeyDown) buttonPresses++
+                false
+            }
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -108,16 +156,24 @@ fun HomeScreen(
             Clock(state.settings.use24HourClock)
         }
 
-        if (state.loaded) {
+        if (state.loaded) BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = SidePadding)) {
+            // Scenic: empty space above the first row, sized so that row sits just above the bottom edge.
+            val tileHeight = (maxWidth - TileSpacing * (COLUMNS - 1)) / COLUMNS * 9f / 16f
+            val scenicGap = (maxHeight - GridTopPadding - TileSpacing - tileHeight - ScenicBottomMargin).coerceAtLeast(0.dp)
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(COLUMNS),
-                modifier = Modifier.fillMaxSize().padding(horizontal = SidePadding),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appsAlpha },
+                contentPadding = PaddingValues(top = GridTopPadding, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(TileSpacing),
                 verticalArrangement = Arrangement.spacedBy(TileSpacing),
             ) {
-                if (state.favorites.isNotEmpty()) {
+                if (scenic) {
+                    item(key = "scenic-gap", span = { GridItemSpan(maxLineSpan) }) {
+                        Spacer(Modifier.height(scenicGap))
+                    }
+                }
+                if (showFavorites) {
                     item(key = "favorites-title", span = { GridItemSpan(maxLineSpan) }) {
                         SectionTitle("Favorites")
                     }
@@ -133,11 +189,24 @@ fun HomeScreen(
                         )
                     }
                 }
-                item(key = "apps-title", span = { GridItemSpan(maxLineSpan) }) {
-                    SectionTitle("All apps  ·  hold OK on an app for options")
+                if (!scenic) {
+                    item(key = "apps-title", span = { GridItemSpan(maxLineSpan) }) {
+                        SectionTitle("All apps  ·  hold OK on an app for options")
+                    }
                 }
                 itemsIndexed(state.apps, key = { _, app -> "app:${app.packageName}" }) { index, app ->
-                    val isFirst = index == 0 && state.favorites.isEmpty()
+                    val isFirst = index == 0 && !showFavorites
+                    // Scenic: coming back to the first row slides the grid back down to show the wallpaper.
+                    val backToScenic = if (scenic && index < COLUMNS) {
+                        Modifier.onFocusChanged {
+                            if (it.hasFocus) scope.launch {
+                                withFrameNanos { }
+                                gridState.animateScrollToItem(0)
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
                     MovableTile(
                         app = app,
                         moving = moving == Moving(app.packageName, Section.Apps),
@@ -147,7 +216,7 @@ fun HomeScreen(
                         onLongClick = { onOptions(app, Section.Apps) },
                         onMove = onMove,
                         onStopMoving = onStopMoving,
-                        modifier = if (isFirst) Modifier.focusRequester(firstTile) else Modifier,
+                        modifier = backToScenic.then(if (isFirst) Modifier.focusRequester(firstTile) else Modifier),
                     )
                 }
             }

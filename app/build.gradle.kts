@@ -52,4 +52,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+    // Plays video wallpapers from the TV's own storage; no network access.
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
 }
